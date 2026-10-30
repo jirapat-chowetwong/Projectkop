@@ -2,6 +2,7 @@
   <div class="pmain" style="margin:20px 0 40px">
     <h2 style="margin-top:0">จัดการสมาชิก (Admin)</h2>
 
+    <!-- แถบค้นหาและกรอง: กด Enter ในช่องค้นหา หรือเปลี่ยนตัวเลือก จะโหลดรายชื่อใหม่ -->
     <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:16px">
       <input v-model="q" placeholder="ค้นหาชื่อหรืออีเมล" @keyup.enter="load" style="flex:1; min-width:200px; padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:inherit">
       <select v-model="role" @change="load" style="padding:10px 14px; border-radius:12px; border:1px solid var(--line); background:var(--bg); color:var(--ink); font:inherit">
@@ -32,6 +33,7 @@
           <td><span class="st" :class="m.status === 'active' ? 'ok' : 'no'">{{ m.status }}</span></td>
           <td>{{ new Date(m.created_at).toLocaleDateString('th-TH') }}</td>
           <td style="white-space:nowrap">
+            <!-- แถวของตัวเองไม่มีปุ่ม (Backend ก็ไม่ให้เปลี่ยนสถานะ/บทบาทตัวเองอยู่แล้ว) -->
             <span v-if="m.id === me.id" style="color:var(--mute)">(คุณ)</span>
             <template v-else>
               <button class="btn ghost" style="padding:6px 12px" @click="changeStatus(m)">
@@ -51,28 +53,36 @@
 </template>
 
 <script setup>
+// หน้า Admin จัดการสมาชิก (/admin/members) ใช้ได้เฉพาะ admin
+//   GET /api/members              โหลดรายชื่อ (ค้นหาด้วย ?q= กรองด้วย ?role= ?status=)
+//   PUT /api/members/:id/status   ระงับ / เปิดใช้งาน
+//   PUT /api/members/:id/role     ตั้ง / ลด admin
+// หมายเหตุ: การเช็คว่าเป็น admin ในหน้านี้เป็นแค่ความสะดวกของผู้ใช้
+//           ความปลอดภัยจริงอยู่ที่ Backend ซึ่งตรวจสิทธิ์จากฐานข้อมูลทุกคำขอ
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { callApi } from '../api.js'
 
 const router = useRouter()
 
-const members = ref([])
-const me = ref({})
-const q = ref('')
-const role = ref('')
-const status = ref('')
+const members = ref([])  // รายชื่อสมาชิกที่แสดงในตาราง
+const me = ref({})       // ข้อมูลของ admin ที่ login อยู่ (ใช้ซ่อนปุ่มในแถวของตัวเอง)
+const q = ref('')        // คำค้นหา
+const role = ref('')     // ตัวกรองบทบาท ('' = ทั้งหมด)
+const status = ref('')   // ตัวกรองสถานะ ('' = ทั้งหมด)
 const error = ref('')
 
 // โหลดรายชื่อสมาชิก (GET /api/members) เฉพาะ admin
 const load = async () => {
   error.value = ''
+  // ประกอบ query string เฉพาะตัวกรองที่มีค่า
   const params = new URLSearchParams()
   if (q.value) params.set('q', q.value)
   if (role.value) params.set('role', role.value)
   if (status.value) params.set('status', status.value)
   try {
     const data = await callApi('/api/members?' + params.toString())
+    // สำเร็จ Backend ส่ง data (รายชื่อ) มา ถ้าไม่มี data แปลว่าถูกปฏิเสธ (เช่น Admin only) ให้แสดงข้อความ
     if (!data.data) {
       error.value = data.message
       return
@@ -89,11 +99,11 @@ onMounted(async () => {
   try {
     const data = await callApi('/api/members/detail')
     if (!data.login) {
-      router.push('/login')
+      router.push('/login')        // ยังไม่ได้ login
       return
     }
     if (data.role !== 'admin') {
-      router.push('/profile')
+      router.push('/profile')      // login แล้วแต่ไม่ใช่ admin
       return
     }
     me.value = data
@@ -104,19 +114,20 @@ onMounted(async () => {
   }
 })
 
-// PUT /api/members/:id/status
+// PUT /api/members/:id/status : สลับระหว่าง active กับ suspended
 const changeStatus = async (m) => {
   const next = m.status === 'active' ? 'suspended' : 'active'
   if (!confirm(`เปลี่ยนสถานะของ ${m.email} เป็น ${next} ?`)) return
   const data = await callApi(`/api/members/${m.id}/status`, 'PUT', { status: next })
+  // สำเร็จ Backend ส่งข้อมูลสมาชิกที่มี status ใหม่กลับมา ถ้าไม่ตรงกับที่ขอ แปลว่าไม่สำเร็จ
   if (data.status !== next) {
     error.value = data.message
     return
   }
-  m.status = data.status
+  m.status = data.status   // อัปเดตแถวในตารางทันทีโดยไม่ต้องโหลดใหม่
 }
 
-// PUT /api/members/:id/role
+// PUT /api/members/:id/role : สลับระหว่าง member กับ admin (ใช้เพิ่ม admin)
 const changeRole = async (m) => {
   const next = m.role === 'admin' ? 'member' : 'admin'
   if (!confirm(`เปลี่ยนบทบาทของ ${m.email} เป็น ${next} ?`)) return

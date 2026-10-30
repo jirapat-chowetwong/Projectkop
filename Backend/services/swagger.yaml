@@ -8,16 +8,24 @@ info:
     เอกสารนี้อธิบาย endpoint ในส่วน **สมาชิก (Members / Auth)**
 
     ## รูปแบบการตอบกลับ
-    Backend ตอบ **HTTP 200 เสมอ** (ตามที่เรียนในคอร์ส) ให้ดูผลสำเร็จหรือผิดพลาดจาก body:
+    ตอบเป็น JSON พร้อม **HTTP status ที่ถูกต้อง** และมี `message` อธิบายผลเสมอ นอกจากนี้บาง endpoint มีฟิลด์บอกผลใน body:
     | endpoint | ฟิลด์บอกผล |
     |---|---|
     | สมัครสมาชิก | `regist` (true/false) |
     | เข้าสู่ระบบ, ดูข้อมูลตัวเอง | `login` (true/false) |
     | แก้ไขข้อมูลส่วนตัว | `update` (true/false) |
     | อัปโหลดรูป | `upload` (true/false) |
-    | endpoint ของ Admin | ถ้าสำเร็จจะมีข้อมูลสมาชิก/`data` ถ้าผิดพลาดจะมีแค่ `message` |
 
-    ทุกกรณีมี `message` อธิบายผลเสมอ
+    | HTTP status | ความหมาย |
+    |---|---|
+    | 200 | สำเร็จ |
+    | 201 | สร้างสำเร็จ (สมัครสมาชิก) |
+    | 400 | ข้อมูลที่ส่งมาไม่ครบหรือไม่ถูกต้อง |
+    | 401 | ยังไม่ได้ login, login ไม่ผ่าน หรือ token ไม่ถูกต้อง/หมดอายุ |
+    | 403 | ไม่มีสิทธิ์ (ไม่ใช่ admin) หรือบัญชีถูกระงับ |
+    | 404 | ไม่พบข้อมูล |
+    | 409 | ข้อมูลซ้ำ (อีเมลถูกใช้แล้ว) |
+    | 500 | ข้อผิดพลาดของเซิร์ฟเวอร์/ฐานข้อมูล |
 
     ## การยืนยันตัวตน
     1. เรียก `POST /members/login` สำเร็จ Backend จะตั้ง Cookie ชื่อ `token` (httpOnly) ให้อัตโนมัติ และส่ง `token` กลับมาใน body ด้วย
@@ -84,40 +92,44 @@ paths:
               name: Nattaya
               password: Mart2026!
       responses:
-        '200':
-          description: ดูผลจากฟิลด์ `regist`
+        '201':
+          description: สมัครสำเร็จ (ไม่ส่ง password กลับมา)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/RegisterResult'
+              example:
+                id: 11
+                email: nattaya.test@example.com
+                name: Nattaya
+                phone: null
+                address: null
+                role: member
+                created_at: '2026-10-30T09:56:52.070Z'
+                message: Regist Success
+                regist: true
+        '400':
+          description: ข้อมูลไม่ครบ หรือรหัสผ่านสั้นกว่า 8 ตัว
+          content:
+            application/json:
               examples:
-                success:
-                  summary: สมัครสำเร็จ (ไม่ส่ง password กลับมา)
-                  value:
-                    id: 11
-                    email: nattaya.test@example.com
-                    name: Nattaya
-                    phone: null
-                    address: null
-                    role: member
-                    created_at: '2026-10-30T09:56:52.070Z'
-                    message: Regist Success
-                    regist: true
                 missingField:
-                  summary: ข้อมูลไม่ครบ
                   value:
                     message: 'ERROR email, name and password is required.'
                     regist: false
                 shortPassword:
-                  summary: รหัสผ่านสั้นกว่า 8 ตัว
                   value:
                     message: 'ERROR password must be at least 8 characters.'
                     regist: false
-                duplicate:
-                  summary: อีเมลนี้มีอยู่ในระบบแล้ว
-                  value:
-                    message: 'ERROR email somchai@example.com is exists.'
-                    regist: false
+        '409':
+          description: อีเมลนี้มีอยู่ในระบบแล้ว
+          content:
+            application/json:
+              example:
+                message: 'ERROR email somchai@example.com is exists.'
+                regist: false
+        '500':
+          $ref: '#/components/responses/ServerError'
     put:
       tags: [Members]
       summary: แก้ไขข้อมูลส่วนตัวของตัวเอง
@@ -150,42 +162,47 @@ paths:
               address: 12 Sukhumvit Rd, Bangkok
       responses:
         '200':
-          description: ดูผลจากฟิลด์ `update`
+          description: แก้ไขสำเร็จ ส่งข้อมูลสมาชิกล่าสุดกลับมา
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Member'
+              example:
+                id: 2
+                email: somchai@example.com
+                name: Somchai Jaidee
+                phone: '0812345678'
+                address: 12 Sukhumvit Rd, Bangkok
+                image: null
+                role: member
+                status: active
+                created_at: '2026-10-28T12:00:00.000Z'
+                message: Update Success
+                update: true
+        '400':
+          description: ไม่ส่ง field ใดเลย, ชื่อว่าง/ยาวเกิน 100 ตัว หรือเบอร์ยาวเกิน 20 ตัว
+          content:
+            application/json:
               examples:
-                success:
-                  summary: แก้ไขสำเร็จ ส่งข้อมูลสมาชิกล่าสุดกลับมา
-                  value:
-                    id: 2
-                    email: somchai@example.com
-                    name: Somchai Jaidee
-                    phone: '0812345678'
-                    address: 12 Sukhumvit Rd, Bangkok
-                    image: null
-                    role: member
-                    status: active
-                    created_at: '2026-10-28T12:00:00.000Z'
-                    message: Update Success
-                    update: true
                 noField:
-                  summary: ไม่ส่ง field ใดเลย
                   value:
                     message: 'ERROR name, phone or address is required.'
                     update: false
                 invalidName:
-                  summary: ชื่อว่างหรือยาวเกิน 100 ตัว
                   value:
                     message: 'ERROR name is required (max 100 characters).'
                     update: false
-                notLogin:
-                  summary: ยังไม่ได้ login
-                  value:
-                    message: Please login
-                    login: false
-                    update: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: ไม่พบสมาชิก (เช่น บัญชีถูกลบไปแล้ว)
+          content:
+            application/json:
+              example:
+                message: Member not found
+                update: false
+        '500':
+          $ref: '#/components/responses/ServerError'
     get:
       tags: [Members]
       summary: รายชื่อสมาชิกทั้งหมด
@@ -217,7 +234,7 @@ paths:
             enum: [active, suspended]
       responses:
         '200':
-          description: สำเร็จจะมี `total` และ `data` ถ้าผิดพลาดจะมีแค่ `message`
+          description: รายชื่อสมาชิก เรียงตาม id
           content:
             application/json:
               schema:
@@ -229,34 +246,30 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Member'
-              examples:
-                success:
-                  summary: รายชื่อสมาชิก เรียงตาม id
-                  value:
-                    total: 1
-                    data:
-                      - id: 2
-                        email: somchai@example.com
-                        name: Somchai Jaidee
-                        phone: '0810000002'
-                        address: 12 Sukhumvit Rd, Bangkok
-                        image: null
-                        role: member
-                        status: active
-                        created_at: '2026-10-28T12:00:00.000Z'
-                notAdmin:
-                  summary: ไม่ใช่ admin
-                  value:
-                    message: Admin only
-                notLogin:
-                  summary: ยังไม่ได้ login
-                  value:
-                    message: Please login
-                    login: false
-                badFilter:
-                  summary: ค่าของ role หรือ status ไม่ถูกต้อง
-                  value:
-                    message: role must be member or admin
+              example:
+                total: 1
+                data:
+                  - id: 2
+                    email: somchai@example.com
+                    name: Somchai Jaidee
+                    phone: '0810000002'
+                    address: 12 Sukhumvit Rd, Bangkok
+                    image: null
+                    role: member
+                    status: active
+                    created_at: '2026-10-28T12:00:00.000Z'
+        '400':
+          description: ค่าของ role หรือ status ไม่ถูกต้อง
+          content:
+            application/json:
+              example:
+                message: role must be member or admin
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminOnly'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /members/login:
     post:
       tags: [Members]
@@ -284,43 +297,48 @@ paths:
               password: Passw0rd!
       responses:
         '200':
-          description: ดูผลจากฟิลด์ `login`
+          description: เข้าสู่ระบบสำเร็จ
           headers:
             Set-Cookie:
-              description: ตั้งเมื่อ login สำเร็จ `token=<JWT>; HttpOnly; Secure; SameSite=Strict`
+              description: token=<JWT>; HttpOnly; SameSite=Lax
               schema:
                 type: string
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/LoginResult'
-              examples:
-                success:
-                  summary: เข้าสู่ระบบสำเร็จ
-                  value:
-                    message: Login Success
-                    login: true
-                    token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-                    member:
-                      id: 2
-                      email: somchai@example.com
-                      name: Somchai Jaidee
-                      role: member
-                missingField:
-                  summary: ไม่ส่งอีเมลหรือรหัสผ่าน
-                  value:
-                    message: Email and Password is required
-                    login: false
-                fail:
-                  summary: อีเมลหรือรหัสผ่านไม่ถูกต้อง
-                  value:
-                    message: Login Fail
-                    login: false
-                suspended:
-                  summary: บัญชีถูกระงับ
-                  value:
-                    message: This account is suspended
-                    login: false
+              example:
+                message: Login Success
+                login: true
+                token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                member:
+                  id: 2
+                  email: somchai@example.com
+                  name: Somchai Jaidee
+                  role: member
+        '400':
+          description: ไม่ส่งอีเมลหรือรหัสผ่าน
+          content:
+            application/json:
+              example:
+                message: Email and Password is required
+                login: false
+        '401':
+          description: อีเมลหรือรหัสผ่านไม่ถูกต้อง
+          content:
+            application/json:
+              example:
+                message: Login Fail
+                login: false
+        '403':
+          description: บัญชีถูกระงับ
+          content:
+            application/json:
+              example:
+                message: This account is suspended
+                login: false
+        '500':
+          $ref: '#/components/responses/ServerError'
   /members/logout:
     get:
       tags: [Members]
@@ -346,40 +364,44 @@ paths:
         - bearerAuth: []
       responses:
         '200':
-          description: ดูผลจากฟิลด์ `login`
+          description: ข้อมูลสมาชิก
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Member'
+              example:
+                id: 2
+                email: somchai@example.com
+                name: Somchai Jaidee
+                phone: '0810000002'
+                address: 12 Sukhumvit Rd, Bangkok
+                image: member_2_1761815000000.png
+                role: member
+                status: active
+                created_at: '2026-10-28T12:00:00.000Z'
+                login: true
+        '401':
+          description: ยังไม่ได้ login หรือ token ไม่ถูกต้อง/หมดอายุ
+          content:
+            application/json:
               examples:
-                success:
-                  summary: ข้อมูลสมาชิก
-                  value:
-                    id: 2
-                    email: somchai@example.com
-                    name: Somchai Jaidee
-                    phone: '0810000002'
-                    address: 12 Sukhumvit Rd, Bangkok
-                    image: member_2_1761815000000.png
-                    role: member
-                    status: active
-                    created_at: '2026-10-28T12:00:00.000Z'
-                    login: true
-                notLogin:
-                  summary: ยังไม่ได้ login
+                noToken:
                   value:
                     message: No member
                     login: false
                 falsified:
-                  summary: token ถูกแก้ไขหรือหมดอายุ
                   value:
                     message: The information was falsified.
                     login: false
-                suspended:
-                  summary: บัญชีถูกระงับ
-                  value:
-                    message: This account is suspended
-                    login: false
+        '403':
+          description: บัญชีถูกระงับ
+          content:
+            application/json:
+              example:
+                message: This account is suspended
+                login: false
+        '500':
+          $ref: '#/components/responses/ServerError'
   /members/uploadimg:
     post:
       tags: [Members]
@@ -406,32 +428,30 @@ paths:
                   format: binary
       responses:
         '200':
-          description: ดูผลจากฟิลด์ `upload`
+          description: อัปโหลดสำเร็จ
+          content:
+            application/json:
+              example:
+                message: File uploaded successfully!
+                upload: true
+                image: member_2_1761815000000.png
+        '400':
+          description: ไม่ได้แนบไฟล์, ไม่ใช่ไฟล์รูป หรือไฟล์ใหญ่เกิน 2 MB
           content:
             application/json:
               examples:
-                success:
-                  summary: อัปโหลดสำเร็จ
-                  value:
-                    message: File uploaded successfully!
-                    upload: true
-                    image: member_2_1761815000000.png
                 notImage:
-                  summary: ไม่ใช่ไฟล์รูป หรือไฟล์ใหญ่เกิน 2 MB
                   value:
                     message: 'Only image files (jpg, png, webp, gif) are allowed'
                     upload: false
                 noFile:
-                  summary: ไม่ได้แนบไฟล์
                   value:
                     message: 'ERROR file is required.'
                     upload: false
-                notLogin:
-                  summary: ยังไม่ได้ login
-                  value:
-                    message: Please login
-                    login: false
-                    upload: false
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /members/{id}/status:
     put:
       tags: [Members]
@@ -460,41 +480,41 @@ paths:
               status: suspended
       responses:
         '200':
-          description: สำเร็จจะส่งข้อมูลสมาชิกกลับมา ถ้าผิดพลาดจะมีแค่ `message`
+          description: เปลี่ยนสำเร็จ ส่งข้อมูลสมาชิกกลับมา
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Member'
+              example:
+                id: 3
+                email: suda@example.com
+                name: Suda Rakdee
+                phone: '0810000003'
+                address: 45 Nimman Rd, Chiang Mai
+                image: null
+                role: member
+                status: suspended
+                created_at: '2026-10-28T12:00:00.000Z'
+                message: Update status Success
+        '400':
+          description: id ไม่ใช่ตัวเลข, ค่า status ไม่ถูกต้อง หรือพยายามเปลี่ยนของตัวเอง
+          content:
+            application/json:
               examples:
-                success:
-                  summary: เปลี่ยนสำเร็จ
-                  value:
-                    id: 3
-                    email: suda@example.com
-                    name: Suda Rakdee
-                    phone: '0810000003'
-                    address: 45 Nimman Rd, Chiang Mai
-                    image: null
-                    role: member
-                    status: suspended
-                    created_at: '2026-10-28T12:00:00.000Z'
-                    message: Update status Success
-                notAdmin:
-                  summary: ไม่ใช่ admin
-                  value:
-                    message: Admin only
                 invalid:
-                  summary: ค่า status ไม่ถูกต้อง
                   value:
                     message: 'status must be one of: active, suspended'
                 self:
-                  summary: เปลี่ยนของตัวเอง
                   value:
                     message: You cannot change your own status
-                notFound:
-                  summary: ไม่พบสมาชิก
-                  value:
-                    message: Member not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminOnly'
+        '404':
+          $ref: '#/components/responses/MemberNotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /members/{id}/role:
     put:
       tags: [Members]
@@ -523,41 +543,41 @@ paths:
               role: admin
       responses:
         '200':
-          description: สำเร็จจะส่งข้อมูลสมาชิกกลับมา ถ้าผิดพลาดจะมีแค่ `message`
+          description: เปลี่ยนสำเร็จ ส่งข้อมูลสมาชิกกลับมา
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Member'
+              example:
+                id: 3
+                email: suda@example.com
+                name: Suda Rakdee
+                phone: '0810000003'
+                address: 45 Nimman Rd, Chiang Mai
+                image: null
+                role: admin
+                status: active
+                created_at: '2026-10-28T12:00:00.000Z'
+                message: Update role Success
+        '400':
+          description: id ไม่ใช่ตัวเลข, ค่า role ไม่ถูกต้อง หรือพยายามเปลี่ยนของตัวเอง
+          content:
+            application/json:
               examples:
-                success:
-                  summary: เปลี่ยนสำเร็จ
-                  value:
-                    id: 3
-                    email: suda@example.com
-                    name: Suda Rakdee
-                    phone: '0810000003'
-                    address: 45 Nimman Rd, Chiang Mai
-                    image: null
-                    role: admin
-                    status: active
-                    created_at: '2026-10-28T12:00:00.000Z'
-                    message: Update role Success
-                notAdmin:
-                  summary: ไม่ใช่ admin
-                  value:
-                    message: Admin only
                 invalid:
-                  summary: ค่า role ไม่ถูกต้อง
                   value:
                     message: 'role must be one of: member, admin'
                 self:
-                  summary: เปลี่ยนของตัวเอง
                   value:
                     message: You cannot change your own role
-                notFound:
-                  summary: ไม่พบสมาชิก
-                  value:
-                    message: Member not found
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/AdminOnly'
+        '404':
+          $ref: '#/components/responses/MemberNotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
 components:
   securitySchemes:
     cookieAuth:
@@ -579,6 +599,38 @@ components:
       schema:
         type: integer
       example: 3
+  responses:
+    Unauthorized:
+      description: ยังไม่ได้ login หรือ token ไม่ถูกต้อง/หมดอายุ
+      content:
+        application/json:
+          examples:
+            noToken:
+              value:
+                message: Please login
+                login: false
+            falsified:
+              value:
+                message: The information was falsified.
+                login: false
+    AdminOnly:
+      description: ไม่ใช่ admin (หรือ admin ถูกระงับ)
+      content:
+        application/json:
+          example:
+            message: Admin only
+    MemberNotFound:
+      description: ไม่พบสมาชิก
+      content:
+        application/json:
+          example:
+            message: Member not found
+    ServerError:
+      description: ข้อผิดพลาดของเซิร์ฟเวอร์หรือฐานข้อมูล
+      content:
+        application/json:
+          example:
+            message: connect ECONNREFUSED 127.0.0.1:5432
   schemas:
     Member:
       type: object

@@ -16,13 +16,15 @@ const PORT = process.env.PORT || 3000;
 
 // ---------- middleware ----------
 // ส่ง Cookie ข้าม origin ได้ ต้องระบุ origin ของ Frontend และเปิด credentials
+// (ถ้าใช้ cors() เปล่า ๆ หรือ origin: '*' Browser จะไม่ยอมส่ง Cookie token มาให้ Backend)
+// ต้องเปิดหน้าเว็บที่พอร์ต 5173 (หรือ 4173 ตอน vite preview) ถึงจะอยู่ในรายการนี้
 app.use(cors({
   origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173', 'http://127.0.0.1:4173'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,
 }));
 app.use(express.json());
-app.use(cookieParser());
+app.use(cookieParser()); // อ่าน Cookie ที่ Browser ส่งมา ให้เรียกใช้ผ่าน req.cookies.token (ใช้ใน memberController)
 
 // ส่วนที่ พีทำ
 app.use("/img_pd",express.static("img_pd")) 
