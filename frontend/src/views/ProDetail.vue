@@ -40,6 +40,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
+import { addToCart, addedMessage } from '../cart.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -71,24 +72,17 @@ onMounted(async () => {
 
 //const discount = computed(() => Math.round((1 - cur.value.price / cur.value.old) * 100))
 const go = (path) => router.push('/' + path)
+// เพิ่มลงตะกร้า : login แล้วเก็บที่ Backend / ยังไม่ login เก็บในตะกร้า Guest (ดู cart.js)
 const add = async (p, qty = 1, buy = false) => {
   try {
-    // POST /api/cart : Backend รู้ว่าใคร login อยู่จาก Cookie token (ต้อง login ก่อน)
-    await axios.post('http://localhost:3000/api/cart', { product_id: p.id, qty: qty })
-    // สั่งให้ App.vue อัปเดตตัวเลขบนไอคอนตะกร้า
-    window.dispatchEvent(new Event('cart-updated'))
+    const mode = await addToCart(p, qty)
     if(buy) {
       router.push('/cart')
     } else {
-      alert(`เพิ่ม ${p.name} ลงตะกร้าแล้ว!`)
+      alert(addedMessage(p, mode))
     }
   } catch (error) {
-    if (error.response?.status === 401) {
-      alert('กรุณาเข้าสู่ระบบก่อนเพิ่มสินค้าลงตะกร้า')
-      router.push('/login')
-    } else {
-      alert(error.response?.data?.message || 'เพิ่มสินค้าลงตะกร้าไม่สำเร็จ')
-    }
+    alert(error.response?.data?.message || 'เพิ่มสินค้าลงตะกร้าไม่สำเร็จ')
   }
 }
 

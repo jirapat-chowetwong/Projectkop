@@ -33,6 +33,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { API } from '../api.js'
+import { addToCart, addedMessage } from '../cart.js'
 
 const router = useRouter()
 const favs = ref([])
@@ -63,20 +64,12 @@ const pickCat = (seriesId) => {
 // กดเปิดแล้วส่ง ID ไปหน้า ProDetail
 const open = (p) => router.push('/prodetail/' + p.id)
 
-// เพิ่มลงตะกร้าจริง : Backend รู้ว่าใคร login จาก Cookie (401 = ยังไม่ได้ login)
-// หมายเหตุ: ตะกร้าเก็บที่ Backend แล้ว (ไม่ใช้ localStorage) หน้า Cart จึงจะเห็นสินค้า
+// เพิ่มลงตะกร้า : login แล้วเก็บที่ Backend / ยังไม่ login เก็บในตะกร้า Guest (ดู cart.js)
 const add = async (p) => {
   try {
-    await axios.post(API + '/api/cart', { product_id: p.id, qty: 1 })
-    window.dispatchEvent(new Event('cart-updated')) // อัปเดตตัวเลขไอคอนตะกร้า
-    alert(`เพิ่ม ${p.name} ลงตะกร้าแล้ว!`)
+    alert(addedMessage(p, await addToCart(p, 1)))
   } catch (error) {
-    if (error.response?.status === 401) {
-      alert('กรุณาเข้าสู่ระบบก่อนเพิ่มสินค้าลงตะกร้า')
-      router.push('/login')
-    } else {
-      alert(error.response?.data?.message || 'เพิ่มสินค้าลงตะกร้าไม่สำเร็จ')
-    }
+    alert(error.response?.data?.message || 'เพิ่มสินค้าลงตะกร้าไม่สำเร็จ')
   }
 }
 

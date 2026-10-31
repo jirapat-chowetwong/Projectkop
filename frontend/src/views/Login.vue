@@ -39,6 +39,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { callApi } from '../api.js'
+import { mergeGuestCart } from '../cart.js'
 
 // เรียกใช้งาน Router สำหรับเปลี่ยนหน้า
 const router = useRouter()
@@ -95,11 +96,16 @@ const submit = async () => {
 
     // App.vue / Profile.vue ยังใช้ค่านี้ตรวจสถานะ จึงเก็บไว้ก่อน (token จริงอยู่ใน Cookie)
     localStorage.setItem('isLoggedIn', 'true')
-    toast('เข้าสู่ระบบสำเร็จ ยินดีต้อนรับกลับมา!')
 
-    // ดีเลย์ 1.5 วินาทีเพื่อให้ผู้ใช้เห็นข้อความสำเร็จ แล้วเปลี่ยนไปหน้า Profile
+    // ย้ายสินค้าในตะกร้า Guest (ที่เลือกไว้ก่อน login) เข้าตะกร้าของสมาชิก
+    const { added, failed } = await mergeGuestCart()
+    toast(added || failed
+      ? `เข้าสู่ระบบสำเร็จ ย้ายสินค้า ${added} รายการเข้าตะกร้าแล้ว` + (failed ? ` (${failed} รายการเพิ่มไม่ได้ เช่น สินค้าหมด)` : '')
+      : 'เข้าสู่ระบบสำเร็จ ยินดีต้อนรับกลับมา!')
+
+    // ดีเลย์ 1.5 วินาทีเพื่อให้ผู้ใช้เห็นข้อความสำเร็จ แล้วเปลี่ยนหน้า (มีสินค้าย้ายมาพาไปตะกร้า นอกนั้นไปหน้า Profile)
     setTimeout(() => {
-      router.push('/profile')
+      router.push(added ? '/cart' : '/profile')
     }, 1500)
   }
   catch (err) {

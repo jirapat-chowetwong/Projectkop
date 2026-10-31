@@ -33,6 +33,7 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
+import { guestCount } from './cart.js'
 
 const router = useRouter()
 const route = useRoute()
@@ -52,14 +53,15 @@ const handleSearch = () => {
   }
 }
 
-// ฟังก์ชันดึงจำนวนสินค้าในตะกร้าจาก Backend (GET /api/cart) ถ้ายังไม่ได้ login จะได้ 401 ให้แสดง 0
+// ฟังก์ชันดึงจำนวนสินค้าในตะกร้าจาก Backend (GET /api/cart) ถ้ายังไม่ได้ login จะได้ 401 ให้ใช้ตะกร้า Guest
 const updateCartCount = async () => {
   try {
     const res = await axios.get('http://localhost:3000/api/cart')
     // รวมจำนวนชิ้น (qty) ของสินค้าทุกรายการในตะกร้า (ตะกร้าว่างไม่มี items)
     cartCount.value = (res.data.items || []).reduce((sum, item) => sum + item.qty, 0)
   } catch (error) {
-    cartCount.value = 0
+    // 401 = ยังไม่ได้ login : แสดงจำนวนจากตะกร้า Guest (ในเบราว์เซอร์) / ข้อผิดพลาดอื่นแสดง 0
+    cartCount.value = error.response?.status === 401 ? guestCount() : 0
   }
 }
 

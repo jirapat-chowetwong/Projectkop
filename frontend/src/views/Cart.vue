@@ -44,14 +44,17 @@
 //   POST   /api/cart              เพิ่มจำนวนสินค้า (ถ้ามีรายการนี้อยู่แล้วจะบวกจำนวนให้)
 //   DELETE /api/cart/items/:id    ลบสินค้าออกจากตะกร้า
 //   POST   /api/cart/checkout     ยืนยันสั่งซื้อ (Backend ตัดสต็อกและเปลี่ยนสถานะเป็น confirmed)
+// ยังไม่ login (GET /api/cart ได้ 401) : แสดง/จัดการตะกร้า Guest ในเบราว์เซอร์ (cart.js) แต่สั่งซื้อไม่ได้จนกว่าจะ login
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
+import { loadGuestCart, setGuestQty, removeGuestItem } from '../cart.js'
 
 const router = useRouter()
 const API = 'http://localhost:3000'
 const cart = ref([])     // รายการสินค้าในตะกร้า
 const busy = ref(false)  // true ระหว่างรอ Backend ตอบ (กันกดซ้ำ)
+const guest = ref(false) // true = ยังไม่ login กำลังใช้ตะกร้า Guest
 
 axios.defaults.withCredentials = true
 
@@ -68,11 +71,24 @@ const handleError = (error, fallback) => {
   }
 }
 
+// จำไว้ว่ารายการไหนติ๊กเลือกอยู่ เพื่อไม่ให้ถูกรีเซ็ตทุกครั้งที่โหลดใหม่
+const pickedMap = () => new Map(cart.value.map(i => [i.id, i.sel]))
+
+// แปลงตะกร้า Guest ให้อยู่ในรูปเดียวกับตะกร้าจาก Backend (ใช้ product_id เป็น id)
+const loadGuest = () => {
+  const picked = pickedMap()
+  guest.value = true
+  cart.value = loadGuestCart().map(i => ({
+    id: i.product_id, product_id: i.product_id, code: i.code, name: i.name,
+    price: Number(i.price), qty: i.qty, sel: picked.has(i.product_id) ? picked.get(i.product_id) : true
+  }))
+}
+
 const fetchCart = async () => {
   try {
     const res = await axios.get(API + '/api/cart')
-    // จำไว้ว่ารายการไหนติ๊กเลือกอยู่ เพื่อไม่ให้ถูกรีเซ็ตทุกครั้งที่โหลดใหม่
-    const picked = new Map(cart.value.map(i => [i.id, i.sel]))
+    guest.value = false
+    const picked = pickedMap()
     // ตะกร้าว่าง Backend ไม่ส่ง items มา จึงใช้ [] แทน
     cart.value = (res.data.items || []).map(item => ({
       id: item.item_id,           // id ของ order_items ใช้อ้างอิงเวลาลบ
@@ -85,8 +101,7 @@ const fetchCart = async () => {
     }))
   } catch (error) {
     if (error.response?.status === 401) {
-      alert('กรุณาเข้าสู่ระบบก่อนดูตะกร้าสินค้า')
-      router.push('/login')
+      loadGuest()  // ยังไม่ login : ใช้ตะกร้า Guest แทน (ไม่เด้งไปหน้า Login)
     } else {
       console.error('ไม่สามารถโหลดตะกร้าได้:', error)
     }
@@ -122,11 +137,15 @@ const fmt = (n) => n.toLocaleString('en-US')
 const go = (path) => router.push('/' + path)
 
 // เพิ่มจำนวน 1 ชิ้น : POST /api/cart (Backend บวกจำนวนให้)
-const inc = (it) => run(() => axios.post(API + '/api/cart', { product_id: it.product_id, qty: 1 }))
+// ตะกร้า Guest : แก้ในเบราว์เซอร์ แล้วโหลดรายการใหม่ + แจ้ง App.vue
+const guestOp = (fn) => { fn(); loadGuest(); notify() }
+
+const inc = (it) => guest.value ? guestOp(() => setGuestQty(it.product_id, it.qty + 1)) : run(() => axios.post(API + '/api/cart', { product_id: it.product_id, qty: 1 }))
 
 // ลดจำนวน 1 ชิ้น : Backend ยังไม่มี endpoint ลดจำนวน จึงลบรายการเดิมแล้วเพิ่มใหม่ด้วยจำนวนที่ลดแล้ว
 const dec = (it) => {
   if (it.qty <= 1) return
+  if (guest.value) return guestOp(() => setGuestQty(it.product_id, it.qty - 1))
   return run(async () => {
     await axios.delete(API + '/api/cart/items/' + it.id)
     await axios.post(API + '/api/cart', { product_id: it.product_id, qty: it.qty - 1 })
@@ -134,13 +153,14 @@ const dec = (it) => {
 }
 
 // ลบสินค้า : DELETE /api/cart/items/:id
-const remove = (id) => run(() => axios.delete(API + '/api/cart/items/' + id))
+const remove = (id) => guest.value ? guestOp(() => removeGuestItem(id)) : run(() => axios.delete(API + '/api/cart/items/' + id))
 
 // ลบหลายรายการ : เรียก DELETE ทีละรายการตามลำดับ (ไม่ยิงพร้อมกัน เพราะรายการสุดท้ายที่ลบจะลบตะกร้าทิ้งด้วย)
 const removeSelected = async () => {
   const items = sel.value
   if (!items.length) return
   if (!confirm(`ลบสินค้าที่เลือก ${items.length} รายการออกจากตะกร้าหรือไม่?`)) return
+  if (guest.value) return guestOp(() => items.forEach(it => removeGuestItem(it.product_id)))
   await run(async () => {
     for (const it of items) {
       await axios.delete(API + '/api/cart/items/' + it.id)
@@ -153,6 +173,12 @@ const toggleAll =(val) => cart.value.forEach(i => i.sel = val)
 // สั่งซื้อ : Backend ยืนยันทั้งตะกร้า จึงนำรายการที่ไม่ได้เลือกออกก่อน (ถามยืนยันก่อน)
 const order = async () => {
   if (!selQty.value) return
+  // ยังไม่ login : สั่งซื้อไม่ได้ พาไปหน้า Login (ตะกร้า Guest ถูกเก็บไว้ และจะย้ายเข้าตะกร้าจริงหลัง login)
+  if (guest.value) {
+    alert('กรุณาเข้าสู่ระบบก่อนสั่งซื้อ (สินค้าในตะกร้าจะถูกเก็บไว้ให้)')
+    router.push('/login')
+    return
+  }
   const unselected = cart.value.filter(i => !i.sel)
   if (unselected.length && !confirm('สินค้าที่ไม่ได้เลือกจะถูกนำออกจากตะกร้า ดำเนินการต่อหรือไม่?')) return
   await run(async () => {
