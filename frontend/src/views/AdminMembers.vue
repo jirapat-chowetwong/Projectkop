@@ -25,7 +25,8 @@
       <table>
         <thead><tr><th>ID</th><th>อีเมล</th><th>ชื่อ</th><th>บทบาท</th><th>สถานะ</th><th>สมัครเมื่อ</th><th>จัดการ</th></tr></thead>
         <tbody>
-        <tr v-for="m in members" :key="m.id">
+        <template v-for="m in members" :key="m.id">
+        <tr>
           <td>{{ m.id }}</td>
           <td>{{ m.email }}</td>
           <td>{{ m.name }}</td>
@@ -33,6 +34,10 @@
           <td><span class="st" :class="m.status === 'active' ? 'ok' : 'no'">{{ m.status }}</span></td>
           <td>{{ new Date(m.created_at).toLocaleDateString('th-TH') }}</td>
           <td style="white-space:nowrap">
+            <!-- ปุ่มดูประวัติ: ใช้ได้กับทุกแถว (รวมของตัวเอง) -->
+            <button class="btn ghost" style="padding:6px 12px; margin-right:6px" @click="toggleHistory(m)">
+              {{ openId === m.id ? 'ซ่อนประวัติ' : 'ดูประวัติ' }}
+            </button>
             <!-- แถวของตัวเองไม่มีปุ่ม (Backend ก็ไม่ให้เปลี่ยนสถานะ/บทบาทตัวเองอยู่แล้ว) -->
             <span v-if="m.id === me.id" style="color:var(--mute)">(คุณ)</span>
             <template v-else>
@@ -45,6 +50,42 @@
             </template>
           </td>
         </tr>
+        <!-- แถวรายละเอียด: ข้อมูลสมาชิก + ประวัติคำสั่งซื้อ (แสดงเมื่อกด "ดูประวัติ") -->
+        <tr v-if="openId === m.id">
+          <td colspan="7" style="background:var(--bg)">
+            <div style="display:flex; gap:16px; align-items:center; margin-bottom:12px">
+              <img v-if="m.image" :src="`${API}/img_mem/${m.image}`" style="width:64px;height:64px;object-fit:cover;border-radius:50%" alt="">
+              <div>
+                <div><b>{{ m.name }}</b> ({{ m.email }})</div>
+                <div style="color:var(--mute)">โทร: {{ m.phone || '-' }} | ที่อยู่: {{ m.address || '-' }}</div>
+              </div>
+            </div>
+            <b>ประวัติคำสั่งซื้อ</b>
+            <p v-if="historyLoading" style="color:var(--mute)">กำลังโหลด...</p>
+            <p v-else-if="!orders.length" style="color:var(--mute)">ยังไม่มีประวัติการสั่งซื้อ</p>
+            <table v-else>
+              <thead><tr><th>เลขที่</th><th>วันที่</th><th>ยอดรวม</th></tr></thead>
+              <tbody>
+                <template v-for="o in orders" :key="o.id">
+                  <tr>
+                    <td><a href="#" style="color:var(--pink);font-weight:700;text-decoration:none" @click.prevent="toggleOrder(o)">#{{ o.order_no }} {{ orderOpen === o.id ? '▲' : '▼' }}</a></td>
+                    <td>{{ new Date(o.confirmed_at || o.created_at).toLocaleString('th-TH') }}</td>
+                    <td>฿ {{ Number(o.total_amount).toLocaleString() }}</td>
+                  </tr>
+                  <tr v-if="orderOpen === o.id">
+                    <td colspan="3">
+                      <div v-for="it in (items[o.id] || [])" :key="it.item_id" style="display:flex; gap:10px; align-items:center; padding:4px 0">
+                        <img :src="`${API}/img_pd/${it.code}.jpg`" style="width:40px;height:40px;object-fit:cover;border-radius:8px" alt="">
+                        {{ it.name }} x{{ it.qty }} (฿ {{ it.unit_price }})
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </td>
+        </tr>
+        </template>
         </tbody>
       </table>
     </div>
@@ -57,6 +98,8 @@
 //   GET /api/members              โหลดรายชื่อ (ค้นหาด้วย ?q= กรองด้วย ?role= ?status=)
 //   PUT /api/members/:id/status   ระงับ / เปิดใช้งาน
 //   PUT /api/members/:id/role     ตั้ง / ลด admin
+//   GET /api/orders?target_member_id=ID  ประวัติคำสั่งซื้อของสมาชิก (admin ดูของคนอื่นได้)
+//   GET /api/orders/:orderId             รายการสินค้าในคำสั่งซื้อ
 // หมายเหตุ: การเช็คว่าเป็น admin ในหน้านี้เป็นแค่ความสะดวกของผู้ใช้
 //           ความปลอดภัยจริงอยู่ที่ Backend ซึ่งตรวจสิทธิ์จากฐานข้อมูลทุกคำขอ
 import { ref, onMounted } from 'vue'
@@ -71,6 +114,13 @@ const q = ref('')        // คำค้นหา
 const role = ref('')     // ตัวกรองบทบาท ('' = ทั้งหมด)
 const status = ref('')   // ตัวกรองสถานะ ('' = ทั้งหมด)
 const error = ref('')
+
+const API = 'http://localhost:3000'
+const openId = ref(null)          // id สมาชิกที่กางประวัติอยู่
+const orders = ref([])            // คำสั่งซื้อที่ยืนยันแล้วของสมาชิกนั้น
+const historyLoading = ref(false)
+const orderOpen = ref(null)       // id คำสั่งซื้อที่กางรายการสินค้าอยู่
+const items = ref({})             // { orderId: [รายการสินค้า] } โหลดครั้งแรกที่กดแล้วเก็บไว้ใช้ซ้ำ
 
 // โหลดรายชื่อสมาชิก (GET /api/members) เฉพาะ admin
 const load = async () => {
@@ -137,5 +187,35 @@ const changeRole = async (m) => {
     return
   }
   m.role = data.role
+}
+
+// กด "ดูประวัติ" : แสดงข้อมูลสมาชิก (จากรายชื่อที่โหลดมาแล้ว) และโหลดคำสั่งซื้อของคนนั้น
+const toggleHistory = async (m) => {
+  if (openId.value === m.id) { openId.value = null; return }
+  openId.value = m.id
+  orders.value = []
+  orderOpen.value = null
+  historyLoading.value = true
+  try {
+    // Backend ตรวจว่าเป็น admin จึงยอมให้ใช้ target_member_id ดูของคนอื่น
+    const data = await callApi('/api/orders?target_member_id=' + m.id)
+    // ตะกร้า (pending) ไม่ใช่คำสั่งซื้อ จึงแสดงเฉพาะที่ยืนยันแล้ว
+    orders.value = (data.data || []).filter(o => o.status === 'confirmed')
+    if (!data.data) error.value = data.message
+  }
+  catch (err) {
+    error.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้'
+  }
+  historyLoading.value = false
+}
+
+// กดเลขที่คำสั่งซื้อ : โหลดรายการสินค้า (GET /api/orders/:orderId)
+const toggleOrder = async (o) => {
+  if (orderOpen.value === o.id) { orderOpen.value = null; return }
+  orderOpen.value = o.id
+  if (!items.value[o.id]) {
+    const data = await callApi('/api/orders/' + o.id)
+    items.value[o.id] = data.data ? data.data.items : []
+  }
 }
 </script>

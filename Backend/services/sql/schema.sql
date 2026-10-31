@@ -5,6 +5,7 @@
 -- Confirm = status 'confirmed' (locked, cannot edit/delete)
 -- ============================================================
 
+DROP TABLE IF EXISTS member_addresses CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders      CASCADE;
 DROP TABLE IF EXISTS products    CASCADE;
@@ -85,6 +86,15 @@ CREATE TABLE order_items (
     UNIQUE (order_id, product_id)                     -- same product = update qty
 );
 CREATE INDEX idx_order_items_order ON order_items(order_id);
+
+-- ---------- member_addresses (extra shipping addresses; main one is members.address) ----------
+CREATE TABLE member_addresses (
+    id         SERIAL PRIMARY KEY,
+    member_id  INT  NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+    address    TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_member_addresses_member ON member_addresses(member_id);
 
 -- ============================================================
 -- SAMPLE DATA (change names / prices as you like)

@@ -1,15 +1,15 @@
 {
   "info": {
-    "name": "Mart - Auth (members)",
+    "name": "มาร์ท - ระบบสมาชิก (Auth)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": "Run the whole collection (Collection Runner) with the backend running on {{baseUrl}}. The Backend answers with the proper HTTP status (200/201/400/401/403/404/409) and also tells success/failure with login/regist/update/upload and message in the body. Registers a new autotest_* account each run (delete them afterwards)."
   },
   "item": [
     {
-      "name": "1. Register",
+      "name": "1. สมัครสมาชิก",
       "item": [
         {
-          "name": "Register - success (tries role=admin)",
+          "name": "สมัครสมาชิก - สำเร็จ (ลองส่ง role=admin)",
           "event": [
             {
               "listen": "prerequest",
@@ -68,7 +68,7 @@
           }
         },
         {
-          "name": "Register - duplicate email",
+          "name": "สมัครสมาชิก - อีเมลซ้ำ",
           "event": [
             {
               "listen": "test",
@@ -115,7 +115,7 @@
           }
         },
         {
-          "name": "Register - password too short",
+          "name": "สมัครสมาชิก - รหัสผ่านสั้นเกินไป",
           "event": [
             {
               "listen": "test",
@@ -162,7 +162,7 @@
           }
         },
         {
-          "name": "Register - missing fields",
+          "name": "สมัครสมาชิก - กรอกข้อมูลไม่ครบ",
           "event": [
             {
               "listen": "test",
@@ -211,10 +211,10 @@
       ]
     },
     {
-      "name": "2. Login",
+      "name": "2. เข้าสู่ระบบ",
       "item": [
         {
-          "name": "Login - success (somchai)",
+          "name": "เข้าสู่ระบบ - สำเร็จ (somchai)",
           "event": [
             {
               "listen": "test",
@@ -266,7 +266,7 @@
           }
         },
         {
-          "name": "Login - newly registered account",
+          "name": "เข้าสู่ระบบ - บัญชีที่เพิ่งสมัคร",
           "event": [
             {
               "listen": "test",
@@ -314,7 +314,7 @@
           }
         },
         {
-          "name": "Login - wrong password",
+          "name": "เข้าสู่ระบบ - รหัสผ่านผิด",
           "event": [
             {
               "listen": "test",
@@ -363,7 +363,7 @@
           }
         },
         {
-          "name": "Login - unknown email (same message as wrong password)",
+          "name": "เข้าสู่ระบบ - ไม่พบอีเมล (ข้อความเดียวกับรหัสผ่านผิด)",
           "event": [
             {
               "listen": "test",
@@ -411,7 +411,7 @@
           }
         },
         {
-          "name": "Login - missing fields",
+          "name": "เข้าสู่ระบบ - กรอกข้อมูลไม่ครบ",
           "event": [
             {
               "listen": "test",
@@ -459,7 +459,7 @@
           }
         },
         {
-          "name": "Login - SQL injection attempt",
+          "name": "เข้าสู่ระบบ - ลองโจมตีด้วย SQL injection",
           "event": [
             {
               "listen": "test",
@@ -508,10 +508,10 @@
       ]
     },
     {
-      "name": "3. Token / session",
+      "name": "3. Token / เซสชัน",
       "item": [
         {
-          "name": "Detail - valid Bearer token",
+          "name": "ดูข้อมูลตัวเอง - Bearer token ถูกต้อง",
           "event": [
             {
               "listen": "test",
@@ -552,7 +552,7 @@
           }
         },
         {
-          "name": "(clear cookie) logout",
+          "name": "(ล้าง cookie) ออกจากระบบ",
           "event": [
             {
               "listen": "test",
@@ -584,7 +584,7 @@
           }
         },
         {
-          "name": "Detail - no token",
+          "name": "ดูข้อมูลตัวเอง - ไม่มี token",
           "event": [
             {
               "listen": "test",
@@ -618,7 +618,7 @@
           }
         },
         {
-          "name": "Detail - tampered token",
+          "name": "ดูข้อมูลตัวเอง - token ถูกแก้ไข",
           "event": [
             {
               "listen": "test",
@@ -659,7 +659,7 @@
           }
         },
         {
-          "name": "Logout",
+          "name": "ออกจากระบบ",
           "event": [
             {
               "listen": "test",
@@ -695,10 +695,10 @@
       ]
     },
     {
-      "name": "4. Edit own profile",
+      "name": "4. แก้ไขข้อมูลส่วนตัว",
       "item": [
         {
-          "name": "Login - admin (saves adminToken, adminId)",
+          "name": "เข้าสู่ระบบ - admin (บันทึก adminToken, adminId)",
           "event": [
             {
               "listen": "test",
@@ -747,7 +747,7 @@
           }
         },
         {
-          "name": "(clear cookie) logout",
+          "name": "(ล้าง cookie) ออกจากระบบ",
           "event": [
             {
               "listen": "test",
@@ -779,7 +779,7 @@
           }
         },
         {
-          "name": "PUT /members - no token",
+          "name": "PUT /members - ไม่มี token",
           "event": [
             {
               "listen": "test",
@@ -826,7 +826,7 @@
           }
         },
         {
-          "name": "PUT /members - empty body",
+          "name": "PUT /members - body ว่าง",
           "event": [
             {
               "listen": "test",
@@ -880,7 +880,7 @@
           }
         },
         {
-          "name": "PUT /members - blank name",
+          "name": "PUT /members - ชื่อว่าง",
           "event": [
             {
               "listen": "test",
@@ -934,7 +934,7 @@
           }
         },
         {
-          "name": "PUT /members - success (ignores role/email)",
+          "name": "PUT /members - สำเร็จ (ไม่สนใจ role/email)",
           "event": [
             {
               "listen": "test",
@@ -990,7 +990,7 @@
           }
         },
         {
-          "name": "Detail - shows edited data from DB",
+          "name": "ดูข้อมูลตัวเอง - แสดงข้อมูลที่แก้ไขจาก DB",
           "event": [
             {
               "listen": "test",
@@ -1030,7 +1030,7 @@
           }
         },
         {
-          "name": "(clear cookie) logout",
+          "name": "(ล้าง cookie) ออกจากระบบ",
           "event": [
             {
               "listen": "test",
@@ -1062,7 +1062,7 @@
           }
         },
         {
-          "name": "Upload image - no token",
+          "name": "อัปโหลดรูป - ไม่มี token",
           "event": [
             {
               "listen": "test",
@@ -1098,10 +1098,10 @@
       ]
     },
     {
-      "name": "5. Admin: manage members",
+      "name": "5. Admin: จัดการสมาชิก",
       "item": [
         {
-          "name": "(clear cookie) logout",
+          "name": "(ล้าง cookie) ออกจากระบบ",
           "event": [
             {
               "listen": "test",
@@ -1133,7 +1133,7 @@
           }
         },
         {
-          "name": "List members - no token",
+          "name": "รายชื่อสมาชิก - ไม่มี token",
           "event": [
             {
               "listen": "test",
@@ -1166,7 +1166,7 @@
           }
         },
         {
-          "name": "List members - as member (forbidden)",
+          "name": "รายชื่อสมาชิก - ในฐานะ member (ไม่มีสิทธิ์)",
           "event": [
             {
               "listen": "test",
@@ -1206,7 +1206,7 @@
           }
         },
         {
-          "name": "List members - as admin",
+          "name": "รายชื่อสมาชิก - ในฐานะ admin",
           "event": [
             {
               "listen": "test",
@@ -1247,7 +1247,7 @@
           }
         },
         {
-          "name": "List members - search ?q=",
+          "name": "รายชื่อสมาชิก - ค้นหา ?q=",
           "event": [
             {
               "listen": "test",
@@ -1286,7 +1286,7 @@
           }
         },
         {
-          "name": "List members - bad role filter",
+          "name": "รายชื่อสมาชิก - ตัวกรอง role ไม่ถูกต้อง",
           "event": [
             {
               "listen": "test",
@@ -1326,7 +1326,7 @@
           }
         },
         {
-          "name": "Status - as member (forbidden)",
+          "name": "สถานะ - ในฐานะ member (ไม่มีสิทธิ์)",
           "event": [
             {
               "listen": "test",
@@ -1381,7 +1381,7 @@
           }
         },
         {
-          "name": "Status - invalid value",
+          "name": "สถานะ - ค่าไม่ถูกต้อง",
           "event": [
             {
               "listen": "test",
@@ -1436,7 +1436,7 @@
           }
         },
         {
-          "name": "Status - id is not a number",
+          "name": "สถานะ - id ไม่ใช่ตัวเลข",
           "event": [
             {
               "listen": "test",
@@ -1491,7 +1491,7 @@
           }
         },
         {
-          "name": "Status - member not found",
+          "name": "สถานะ - ไม่พบสมาชิก",
           "event": [
             {
               "listen": "test",
@@ -1546,7 +1546,7 @@
           }
         },
         {
-          "name": "Status - admin cannot suspend self",
+          "name": "สถานะ - admin ระงับตัวเองไม่ได้",
           "event": [
             {
               "listen": "test",
@@ -1601,7 +1601,7 @@
           }
         },
         {
-          "name": "Status - suspend the new member",
+          "name": "สถานะ - ระงับสมาชิกใหม่",
           "event": [
             {
               "listen": "test",
@@ -1656,7 +1656,7 @@
           }
         },
         {
-          "name": "Suspended member - login blocked",
+          "name": "สมาชิกที่ถูกระงับ - เข้าสู่ระบบไม่ได้",
           "event": [
             {
               "listen": "test",
@@ -1704,7 +1704,7 @@
           }
         },
         {
-          "name": "Suspended member - old token blocked",
+          "name": "สมาชิกที่ถูกระงับ - token เดิมใช้ไม่ได้",
           "event": [
             {
               "listen": "test",
@@ -1745,7 +1745,7 @@
           }
         },
         {
-          "name": "Status - reactivate",
+          "name": "สถานะ - เปิดใช้งานอีกครั้ง",
           "event": [
             {
               "listen": "test",
@@ -1800,7 +1800,7 @@
           }
         },
         {
-          "name": "Role - invalid value",
+          "name": "บทบาท - ค่าไม่ถูกต้อง",
           "event": [
             {
               "listen": "test",
@@ -1855,7 +1855,7 @@
           }
         },
         {
-          "name": "Role - admin cannot change own role",
+          "name": "บทบาท - admin เปลี่ยนบทบาทตัวเองไม่ได้",
           "event": [
             {
               "listen": "test",
@@ -1910,7 +1910,7 @@
           }
         },
         {
-          "name": "Role - make the new member admin",
+          "name": "บทบาท - ตั้งสมาชิกใหม่เป็น admin",
           "event": [
             {
               "listen": "test",
@@ -1965,7 +1965,7 @@
           }
         },
         {
-          "name": "Role - new admin can list members",
+          "name": "บทบาท - admin ใหม่ดูรายชื่อสมาชิกได้",
           "event": [
             {
               "listen": "test",
@@ -2004,7 +2004,7 @@
           }
         },
         {
-          "name": "Role - demote back to member",
+          "name": "บทบาท - ลดกลับเป็น member",
           "event": [
             {
               "listen": "test",
@@ -2059,7 +2059,7 @@
           }
         },
         {
-          "name": "Role - demoted member can no longer list",
+          "name": "บทบาท - สมาชิกที่ถูกลดสิทธิ์ดูรายชื่อไม่ได้",
           "event": [
             {
               "listen": "test",

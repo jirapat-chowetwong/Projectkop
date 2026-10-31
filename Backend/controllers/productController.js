@@ -1,16 +1,20 @@
 import database from "../services/db.js";
+import { isAdmin } from "../middleware/auth.js";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
 
 //protect
 const TYPES = ['blind_box', 'whole_set', 'single'];
 const SORTS = {
-  newest: 'p.id ASC',
+  newest: 'p.id DESC',
   oldest: 'p.id ASC',
   price_asc: 'p.price ASC, p.id',
   price_desc: 'p.price DESC, p.id',
   name: 'p.name ASC, p.id',
 };
 const SELECT = `
-    SELECT p.id, p.code, p.name, p.product_type, p.price, p.stock, p.description,
+    SELECT p.id, p.code, p.name, p.product_type, p.price, p.stock, p.description, p.is_active,
             s.id AS series_id, s.name AS series_name
     FROM products p
     LEFT JOIN series s ON s.id = p.series_id`;
@@ -24,19 +28,21 @@ export async function getAllProduct(req, res, next) {
     try {
         const { q, series, type, in_stock, sort = 'newest' } = req.query;
         const page = toInt(req.query.page) || 1;
-        const limit = Math.min(toInt(req.query.limit) || 12, 100);
+        const limit = Math.min(toInt(req.query.limit) || 50, 100);
 
         if (type && !TYPES.includes(type)) {
-            return res.status(400).json({ error: `type must be one of: ${TYPES.join(', ')}` });
+            return res.status(400).json({ message: `type must be one of: ${TYPES.join(', ')}` });
         }
         if (!SORTS[sort]) {
-            return res.status(400).json({ error: `sort must be one of: ${Object.keys(SORTS).join(', ')}` });
+            return res.status(400).json({ message: `sort must be one of: ${Object.keys(SORTS).join(', ')}` });
         }
         if (series !== undefined && toInt(series) === null) {
-            return res.status(400).json({ error: 'series must be a series id (number)' });
+            return res.status(400).json({ message: 'series must be a series id (number)' });
         }
 
-        const where = ['p.is_active = TRUE'];
+        // admin ขอ ?all=true เพื่อดูสินค้าที่ซ่อนอยู่ด้วย (คนทั่วไปเห็นเฉพาะสินค้าที่เปิดขาย)
+        const showAll = req.query.all === 'true' && await isAdmin(req);
+        const where = showAll ? [] : ['p.is_active = TRUE'];
         const params = [];
         if (q) {
             params.push(`%${q}%`);
@@ -52,7 +58,7 @@ export async function getAllProduct(req, res, next) {
         }
         if (in_stock === 'true') where.push('p.stock > 0');
 
-        const whereSql = `WHERE ${where.join(' AND ')}`;
+        const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
         const total = await database.query(`SELECT count(*)::int AS n FROM products p ${whereSql}`, params);
 
         // กำหนดตำแหน่ง index สำหรับ LIMIT และ OFFSET ก่อนจะ push ค่าลง params
@@ -82,10 +88,10 @@ export async function getProductById(req, res, next) {
     console.log(`GET /products/id:${req.params.id} is requested`)  
     try {
         const id = toInt(req.params.id);
-        if (id === null) return res.status(400).json({ error: 'id must be a number' });
+        if (id === null) return res.status(400).json({ message: 'id must be a number' });
 
         const result = await database.query(`${SELECT} WHERE p.id = $1 AND p.is_active = TRUE`, [id]);
-        if (result.rowCount === 0) return res.status(404).json({ error: 'Product not found' });
+        if (result.rowCount === 0) return res.status(404).json({ message: 'Product not found' });
         res.json(result.rows[0]);
     } catch (err) {
         next(err);
@@ -113,7 +119,7 @@ export async function getSeriesById(req, res, next) {
     try {
         const id = parseInt(req.params.id);
         if (isNaN(id)) {
-            return res.status(400).json({ error: 'id must be a number' });
+            return res.status(400).json({ message: 'id must be a number' });
         }
 
         const seriesResult = await database.query({
@@ -122,7 +128,7 @@ export async function getSeriesById(req, res, next) {
         });
 
         if (seriesResult.rowCount === 0) {
-            return res.status(404).json({ error: 'Series not found' });
+            return res.status(404).json({ message: 'Series not found' });
         }
 
         const productsResult = await database.query({
@@ -210,6 +216,7 @@ export async function putProduct(req, res) {
                         "is_active" = $8,
                         "updated_at" = NOW()
                     WHERE "id" = $9
+                    RETURNING *
                 `,
             values: [
                 bodyData.code,
@@ -253,6 +260,44 @@ export async function deleteProduct(req, res) {
 
         return res.status(204).end()
     } catch (err) {
+        // สินค้าที่เคยถูกสั่งซื้อแล้วลบไม่ได้ (foreign key) ให้ซ่อนแทน
+        if (err.code === '23503')
+            return res.status(409).json({ message: `ERROR product is used in orders, hide it instead of deleting` })
         return res.status(500).json({ message: err.message })
     }
 }
+
+// ----------------------------------------------------------------------
+// [Admin] เปลี่ยนรูปสินค้า : POST /products/:id/image (multipart/form-data, field ชื่อ 'file')
+// หน้าร้านแสดงรูปจาก img_pd/<code>.jpg จึงบันทึกทับไฟล์ชื่อรหัสสินค้านั้น
+// รับ jpg/png/webp/gif ขนาดไม่เกิน 2 MB
+// ----------------------------------------------------------------------
+const imgUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (/^image\/(jpeg|png|webp|gif)$/.test(file.mimetype)) cb(null, true)
+        else cb(new Error('ERROR only jpg, png, webp, gif images are allowed.'))
+    }
+}).single('file')
+
+export async function uploadProductImage(req, res) {
+    console.log(`POST /products/${req.params.id}/image is requested`)
+    imgUpload(req, res, async (err) => {
+        if (err) return res.status(400).json({ message: err.message, upload: false })
+        if (!req.file) return res.status(400).json({ message: `ERROR file is required.`, upload: false })
+        try {
+            const id = toInt(req.params.id)
+            if (id === null) return res.status(400).json({ message: `id must be a number`, upload: false })
+            const result = await database.query({ text: `SELECT code FROM products WHERE id = $1`, values: [id] })
+            if (result.rowCount === 0) return res.status(404).json({ message: `Product not found`, upload: false })
+            // ใช้เฉพาะชื่อไฟล์ ป้องกัน code ที่มี ../ พาไปเขียนที่อื่น
+            const file = path.basename(result.rows[0].code) + '.jpg'
+            fs.writeFileSync(path.join('img_pd', file), req.file.buffer)
+            res.json({ message: 'File uploaded successfully!', upload: true, image: file })
+        } catch (e) {
+            res.status(500).json({ message: e.message, upload: false })
+        }
+    })
+}
+

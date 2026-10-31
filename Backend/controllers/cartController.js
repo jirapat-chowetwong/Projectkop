@@ -1,7 +1,13 @@
 import database from "../services/db.js"
 
 export async function getCart(req, res, next) {
-    const memberId = req.query.member_id || (req.user ? req.user.id : null);
+    const memberId = (req.user ? req.user.id : null);
+    
+    //const memberId = req.user ? req.user.id : null; เอาไว้ทดสอบ กรณี ยิง url
+    if (!memberId) {
+       return res.status(401).json({ success: false, message: "Unauthorized, please login" });
+    }
+
     console.log(`GET /api/cart requested by member ${memberId}`);
     try {
         // ค้นหาตะกร้าที่สถานะยังเป็น pending ของ Member คนนี้
@@ -43,12 +49,12 @@ export async function getCart(req, res, next) {
 
 export async function addToCart(req, res, next) {
     try {
-        // รองรับทั้งจากการเทสผ่าน Query (?member_id=...) และจากระบบ Auth จริง (req.user.id)
-        const memberId = req.query.member_id || (req.user ? req.user.id : null);
+        //const memberId = req.user ? req.user.id : null; เอาไว้ทดสอบ กรณี ยิง url
+        const memberId = req.user ? req.user.id : null;
         const { product_id, qty } = req.body;
 
         if (!memberId) {
-            return res.status(400).json({ success: false, message: "member_id is required" });
+            return res.status(401).json({ success: false, message: "Unauthorized, please login" });
         }
 
         if (!product_id || !qty || qty <= 0) {
@@ -64,17 +70,31 @@ export async function addToCart(req, res, next) {
         }
         const product = productResult.rows[0];
 
-        // 2. ตรวจสอบว่ามีตะกร้า (pending) อยู่แล้วหรือไม่ ถ้ายังไม่มีให้สร้างใหม่
-        let cartQuery = `SELECT * FROM "orders" WHERE "member_id" = $1 AND "status" = 'pending'`;
-        let cartResult = await database.query(cartQuery, [memberId]);
         let cartId;
+        const cartResult = await database.query(
+            `SELECT * FROM "orders" WHERE "member_id" = $1 AND "status" = 'pending'`,
+            [memberId]
+        );
 
-        if (cartResult.rows.length === 0) {
-            const createCartQuery = `INSERT INTO "orders" ("member_id", "status") VALUES ($1, 'pending') RETURNING id`;
-            const newCart = await database.query(createCartQuery, [memberId]);
-            cartId = newCart.rows[0].id;
-        } else {
+        if (cartResult.rows.length > 0) {
             cartId = cartResult.rows[0].id;
+        } else {
+            try {
+                const createCartQuery = `INSERT INTO "orders" ("member_id", "status") VALUES ($1, 'pending') RETURNING id`;
+                const newCart = await database.query(createCartQuery, [memberId]);
+                cartId = newCart.rows[0].id;
+            } catch (err) {
+                // ถ้าจังหวะชนกันพอดี ให้ดึงตะกร้าที่มีอยู่แล้วขึ้นมาใช้แทน
+                if (err.code === '23505') { 
+                    const retryResult = await database.query(
+                        `SELECT * FROM "orders" WHERE "member_id" = $1 AND "status" = 'pending'`,
+                        [memberId]
+                    );
+                    cartId = retryResult.rows[0].id;
+                } else {
+                    throw err; // ถ้าเป็น Error อื่นให้โยนออกไปตามปกติ
+                }
+            }
         }
 
         // 3. ตรวจสอบว่ามีสินค้านี้อยู่ในตะกร้าหรือยัง
@@ -121,12 +141,12 @@ export async function addToCart(req, res, next) {
 
 export async function removeCartItem(req, res, next) {
     try {
-        // รองรับทั้งจากการเทสผ่าน Query (?member_id=...) และจากระบบ Auth จริง (req.user.id)
-        const memberId = req.query.member_id || (req.user ? req.user.id : null);
+        //const memberId = req.user ? req.user.id : null; เอาไว้ทดสอบ กรณี ยิง url
+        const memberId = req.user ? req.user.id : null;
         const { itemId } = req.params;
 
         if (!memberId) {
-            return res.status(400).json({ success: false, message: "member_id is required" });
+            return res.status(401).json({ success: false, message: "Unauthorized, please login" });
         }
 
         // ตรวจสอบว่า item นี้อยู่ในตะกร้าที่เป็น pending ของ member คนนี้จริงหรือไม่
@@ -186,11 +206,11 @@ export async function removeCartItem(req, res, next) {
 
 export async function clearCart(req, res, next) {
     try {
-        // รองรับทั้งจากการเทสผ่าน Param/Query และจากระบบ Auth จริง (req.user.id)
-        const memberId = req.params.memberId || req.query.member_id || (req.user ? req.user.id : null);
+        //const memberId = req.user ? req.user.id : null; เอาไว้ทดสอบ กรณี ยิง url
+        const memberId = req.user ? req.user.id : null;   
 
         if (!memberId) {
-            return res.status(400).json({ success: false, message: "member_id is required" });
+            return res.status(401).json({ success: false, message: "Unauthorized, please login" });
         }
 
         // 1. ค้นหาตะกร้าสถานะ pending ของสมาชิกคนนี้
@@ -223,63 +243,94 @@ export async function clearCart(req, res, next) {
 }
 
 export async function checkoutCart(req, res, next) {
+    const client = await database.connect(); // ใช้ client แยกสำหรับ Transaction
     try {
-        // รองรับทั้งจากการเทสผ่าน Query (?member_id=...) และจากระบบ Auth จริง (req.user.id)
-        const memberId = req.query.member_id || (req.user ? req.user.id : null);
+        await client.query('BEGIN'); // เริ่ม Transaction
 
+        //const memberId = req.user ? req.user.id : null; เอาไว้ทดสอบ กรณี ยิง url
+        const memberId = req.user ? req.user.id : null;
         if (!memberId) {
-            return res.status(400).json({ success: false, message: "member_id is required" });
+            await client.query('ROLLBACK');
+            return res.status(401).json({ success: false, message: "Unauthorized, please login" });
         }
 
-        // 1. ค้นหาตะกร้าที่สถานะยังเป็น 'pending' ของสมาชิกคนนี้
-        const cartResult = await database.query(
-            `SELECT * FROM "orders" WHERE "member_id" = $1 AND "status" = 'pending'`,
+        // 1. ค้นหาตะกร้า pending
+        const cartResult = await client.query(
+            `SELECT * FROM "orders" WHERE "member_id" = $1 AND "status" = 'pending' FOR UPDATE`,
             [memberId]
         );
-
         if (cartResult.rowCount === 0) {
-            return res.status(404).json({ success: false, message: "No active pending cart found for checkout" });
+            await client.query('ROLLBACK');
+            return res.status(404).json({ success: false, message: "No active pending cart found" });
         }
-
         const cart = cartResult.rows[0];
 
-        // 2. ตรวจสอบว่าในตะกรามีสินค้าอยู่จริงไหม (ป้องกันการกด Checkout ตะกร้าเปล่า)
-        const itemsResult = await database.query(
+        // 2. ดึงรายการสินค้าในตะกร้า
+        const itemsResult = await client.query(
             `SELECT * FROM "order_items" WHERE "order_id" = $1`,
             [cart.id]
         );
-
         if (itemsResult.rowCount === 0) {
+            await client.query('ROLLBACK');
             return res.status(400).json({ success: false, message: "Cannot checkout an empty cart" });
         }
 
-        // 3. เปลี่ยนสถานะ order จาก 'pending' เป็น 'confirmed' และบันทึกเวลา confirmed_at ด้วย NOW()
+        // 3. วนลูปเช็คและตัดสต็อกสินค้าแต่ละชิ้น
+        for (const item of itemsResult.rows) {
+            const productRes = await client.query(
+                `SELECT stock FROM "products" WHERE "id" = $1 FOR UPDATE`,
+                [item.product_id]
+            );
+            const currentStock = productRes.rows[0].stock;
+
+            if (currentStock < item.qty) {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ 
+                    success: false, 
+                    message: `Product ID ${item.product_id} is out of stock or insufficient quantity.` 
+                });
+            }
+
+            // ตัดสต็อกจริง
+            await client.query(
+                `UPDATE "products" SET "stock" = "stock" - $1, "updated_at" = NOW() WHERE "id" = $2`,
+                [item.qty, item.product_id]
+            );
+        }
+
+        // 4. เปลี่ยนสถานะ order เป็น confirmed
         const updateOrderQuery = `
             UPDATE "orders" 
-            SET "status" = 'confirmed', "confirmed_at" = NOW() 
-            WHERE "id" = $1 AND "status" = 'pending'
+            SET "status" = 'confirmed', "confirmed_at" = NOW(),
+                "total_amount" = (SELECT COALESCE(SUM(qty * unit_price), 0) FROM "order_items" WHERE "order_id" = $1)
+            WHERE "id" = $1 
             RETURNING id, order_no, member_id, status, total_amount, created_at, confirmed_at
         `;
-        const updatedOrderResult = await database.query(updateOrderQuery, [cart.id]);
+        const updatedOrderResult = await client.query(updateOrderQuery, [cart.id]);
 
+        await client.query('COMMIT'); // ยืนยัน Transaction ทั้งหมด
         res.status(200).json({
             success: true,
-            message: "Checkout successful. Order has been confirmed.",
+            message: "Checkout successful and stock updated.",
             data: updatedOrderResult.rows[0]
         });
+
     } catch (error) {
+        await client.query('ROLLBACK'); // ยกเลิกหากเกิด Error
         console.error(error);
         res.status(500).json({ success: false, message: "Server error", error: error.message });
+    } finally {
+        client.release(); // คืน Connection กลับพูล
     }
 }
 
 export async function getOrders(req, res, next) {
     try {
-        // รองรับทั้งจากการเทสผ่าน Query (?member_id=...) และจากระบบ Auth จริง (req.user.id)
-        const memberId = req.query.member_id || (req.user ? req.user.id : null);
+        //const memberId = req.user ? req.user.id : null; เอาไว้ทดสอบ กรณี ยิง url
+        const memberId = req.user ? req.user.id : null;
 
         if (!memberId) {
-            return res.status(400).json({ success: false, message: "member_id is required" });
+            return res.status(401).json({ success: false, message: "Unauthorized, please login" });
         }
 
         // ตรวจสอบสิทธิ์ (role) ของผู้ใช้งานจากตาราง members
@@ -299,7 +350,7 @@ export async function getOrders(req, res, next) {
             // Admin สามารถเลือกกรองดูเฉพาะสมาชิกคนใดคนหนึ่งได้ (เช่น ?target_member_id=3) หรือจะไม่กรองเพื่อดูทั้งหมดก็ได้
             const targetMemberId = req.query.target_member_id;
             
-            if (targetMemberId) {
+            if (targetMemberId) {// Admin อยากดูเฉพาะเจาะจงของสมาชิกคนใดคนหนึ่ง
                 ordersQuery = `
                     SELECT o.*, m.name AS member_name, m.email AS member_email 
                     FROM "orders" o
@@ -308,7 +359,7 @@ export async function getOrders(req, res, next) {
                     ORDER BY o.created_at DESC
                 `;
                 queryParams = [targetMemberId];
-            } else {
+            } else {    // Admin ไม่ได้กรอง อยากดูคำสั่งซื้อทั้งหมดของทุกคนในระบบ
                 ordersQuery = `
                     SELECT o.*, m.name AS member_name, m.email AS member_email 
                     FROM "orders" o
@@ -344,12 +395,12 @@ export async function getOrders(req, res, next) {
 
 export async function getOrderDetail(req, res, next) {
     try {
-        // รองรับทั้งจากการเทสผ่าน Query (?member_id=...) และจากระบบ Auth จริง (req.user.id)
-        const memberId = req.query.member_id || (req.user ? req.user.id : null);
+        //const memberId = req.user ? req.user.id : null; เอาไว้ทดสอบ กรณี ยิง url
+        const memberId = req.user ? req.user.id : null;
         const { orderId } = req.params;
 
         if (!memberId) {
-            return res.status(400).json({ success: false, message: "member_id is required" });
+            return res.status(401).json({ success: false, message: "Unauthorized, please login" });
         }
 
         // 1. ตรวจสอบสิทธิ์ (role) ของผู้ใช้งานจากตาราง members
@@ -416,12 +467,12 @@ export async function getOrderDetail(req, res, next) {
 
 export async function getOrdersByMember(req, res, next) {
     try {
-        // รองรับทั้งจากการเทสผ่าน Query (?member_id=...) และจากระบบ Auth จริง (req.user.id)
-        const requesterId = req.query.member_id || (req.user ? req.user.id : null);
+        //const memberId = req.user ? req.user.id : null; เอาไว้ทดสอบ กรณี ยิง url
+        const requesterId = req.user ? req.user.id : null;
         const { memberId } = req.params; // รหัสของลูกค้าที่ต้องการดูประวัติ
 
         if (!requesterId) {
-            return res.status(400).json({ success: false, message: "requester member_id is required" });
+            return res.status(401).json({ success: false, message: "Unauthorized, please login" });
         }
 
         // 1. ตรวจสอบสิทธิ์ (role) ของผู้ที่ส่งคำขอเข้ามาจากตาราง members

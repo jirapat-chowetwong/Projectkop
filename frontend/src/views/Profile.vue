@@ -9,6 +9,7 @@
       <button class="it" v-for="m in menu" :key="m" :class="{on:m===menuSel}" @click="menuSel=m">{{m}}</button>
       <!-- ปุ่มนี้แสดงเฉพาะ admin (Backend ตรวจสิทธิ์ซ้ำอีกชั้นเสมอ) -->
       <button class="it" v-if="user.role==='admin'" style="background:var(--pink-l);font-weight:700" @click="router.push('/admin/members')">จัดการสมาชิก (Admin)</button>
+      <button class="it" v-if="user.role==='admin'" style="background:var(--pink-l);font-weight:700" @click="router.push('/admin/products')">จัดการสินค้า (Admin)</button>
       <button class="it" style="background:var(--card);text-align:center;font-weight:700;margin-top:30px" @click="logout">ออกจากระบบ</button></aside>
     <div>
       <div class="pmain"><h2 style="margin-top:0">ข้อมูลส่วนตัว</h2>
@@ -31,11 +32,53 @@
             <small>ไฟล์ jpg, png, webp, gif ขนาดไม่เกิน 2 MB</small>
           </div></div></div>
       <h2>ที่อยู่จัดส่ง</h2>
-      <div class="addr"><div><span>👤 {{user.address || 'ยังไม่ได้ระบุที่อยู่'}}</span><button class="btn ghost" style="padding:6px 14px" @click="edit=true">แก้ไข</button></div>
-        <div style="justify-content:center;cursor:pointer" @click="toast('เพิ่มที่อยู่ใหม่ (เดโม)')">＋ เพิ่มที่อยู่ใหม่</div></div>
+      <div class="addr">
+        <!-- ที่อยู่หลัก (members.address) แก้ไขที่ฟอร์มข้อมูลส่วนตัวด้านบน -->
+        <div><span>👤 {{user.address || 'ยังไม่ได้ระบุที่อยู่'}}</span><button class="btn ghost" style="padding:6px 14px" @click="edit=true">แก้ไข</button></div>
+        <!-- ที่อยู่เพิ่มเติม (member_addresses) -->
+        <div v-for="a in addresses" :key="a.id">
+          <template v-if="editId===a.id">
+            <input v-model="editText" maxlength="500" style="flex:1;margin-right:8px" @keyup.enter="saveAddress">
+            <span style="white-space:nowrap"><button class="btn" style="padding:6px 14px" @click="saveAddress">บันทึก</button>
+              <button class="btn ghost" style="padding:6px 14px;margin-left:6px" @click="editId=null">ยกเลิก</button></span>
+          </template>
+          <template v-else>
+            <span>📍 {{a.address}}</span>
+            <span style="white-space:nowrap"><button class="btn ghost" style="padding:6px 14px" @click="startEditAddress(a)">แก้ไข</button>
+              <button class="btn ghost" style="padding:6px 14px;margin-left:6px" @click="removeAddress(a)">ลบ</button></span>
+          </template>
+        </div>
+        <div v-if="adding">
+          <input v-model="newAddress" maxlength="500" placeholder="กรอกที่อยู่จัดส่งใหม่" style="flex:1;margin-right:8px" @keyup.enter="addAddress">
+          <span style="white-space:nowrap"><button class="btn" style="padding:6px 14px" @click="addAddress">บันทึก</button>
+            <button class="btn ghost" style="padding:6px 14px;margin-left:6px" @click="adding=false;newAddress=''">ยกเลิก</button></span>
+        </div>
+        <div v-else style="justify-content:center;cursor:pointer" @click="adding=true;editId=null">＋ เพิ่มที่อยู่ใหม่</div>
+      </div>
+      <p style="color:#c02a54" v-if="addrError">{{addrError}}</p>
       <h2>ประวัติการสั่งซื้อ</h2>
-      <div style="overflow-x:auto"><table><tr><th>เลขที่คำสั่งซื้อ</th><th>วันที่สั่งซื้อ</th><th>ยอดรวม</th><th>สถานะ</th></tr>
-        <tr v-for="o in orders" :key="o.id"><td>{{o.id}}</td><td>{{o.date}}</td><td>฿ {{fmt(o.total)}}</td><td><span class="st" :class="o.cls">{{o.st}}</span></td></tr></table></div>
+      <div style="overflow-x:auto"><table><thead><tr><th>เลขที่คำสั่งซื้อ</th><th>วันที่สั่งซื้อ</th><th>ยอดรวม</th><th>สถานะ</th></tr></thead>
+        <tbody>
+          <tr v-if="!orders.length"><td colspan="4" style="text-align:center;color:var(--mute)">ยังไม่มีประวัติการสั่งซื้อ</td></tr>
+          <template v-for="o in orders" :key="o.id">
+            <tr>
+              <!-- กดเลขที่คำสั่งซื้อเพื่อเปิด/ปิดรายการสินค้าที่สั่ง -->
+              <td><a href="#" style="color:var(--pink);font-weight:700;text-decoration:none" @click.prevent="toggleOrder(o)">#{{o.order_no}} {{openId===o.id?'▲':'▼'}}</a></td>
+              <td>{{fmtDate(o.confirmed_at || o.created_at)}}</td><td>฿ {{fmt(Number(o.total_amount))}}</td><td><span class="st ok">สั่งซื้อแล้ว</span></td></tr>
+            <tr v-if="openId===o.id"><td colspan="4" style="background:var(--card)">
+              <p v-if="!detail[o.id]" style="margin:8px 0;color:var(--mute)">{{detailError || 'กำลังโหลดรายการสินค้า...'}}</p>
+              <table v-else style="width:100%">
+                <thead><tr><th>สินค้า</th><th>ราคาต่อชิ้น</th><th>จำนวน</th><th>รวม</th></tr></thead>
+                <tbody>
+                  <tr v-for="it in detail[o.id]" :key="it.item_id">
+                    <td><div style="display:flex;gap:10px;align-items:center">
+                      <img :src="`${API}/img_pd/${it.code}.jpg`" style="width:44px;height:44px;object-fit:cover;border-radius:8px" alt="">{{it.name}}</div></td>
+                    <td>฿ {{fmt(Number(it.unit_price))}}</td><td>{{it.qty}}</td><td>฿ {{fmt(it.qty * Number(it.unit_price))}}</td></tr>
+                  <tr><td colspan="3" style="text-align:right;font-weight:700">ยอดรวม</td><td style="font-weight:700">฿ {{fmt(detailTotal(o.id))}}</td></tr>
+                </tbody></table>
+            </td></tr>
+          </template>
+        </tbody></table></div>
     </div>
   </div>
 </template>
@@ -46,6 +89,8 @@
 //   PUT  /api/members            บันทึกชื่อ เบอร์ ที่อยู่
 //   POST /api/members/uploadimg  อัปโหลดรูป
 //   GET  /api/members/logout     ออกจากระบบ
+//   GET/POST/PUT/DELETE /api/members/addresses  ที่อยู่จัดส่งเพิ่มเติม
+//   GET  /api/orders             ประวัติการสั่งซื้อ (แสดงเฉพาะที่ยืนยันสั่งซื้อแล้วของตัวเอง)
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { API, callApi } from '../api.js'
@@ -82,6 +127,8 @@ onMounted(async () => {
     }
     user.value = data
     fillForm()
+    loadAddresses()
+    loadOrders()
   }
   catch (err) {
     error.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้'
@@ -166,13 +213,101 @@ const logout = async () => {
   router.push('/login') // เด้งไปหน้าเข้าสู่ระบบ
 }
 
-// ประวัติการสั่งซื้อ : ยังเป็นข้อมูลจำลอง (งานส่วน Transaction ของเพื่อน)
-const orders = ref([
-  { id: '#PMT2025003', date: '12 ก.ค. 2569', total: 1860, st: 'จัดส่งแล้ว', cls: 'ok' },
-  { id: '#PMT2025002', date: '5 ก.ค. 2569', total: 690, st: 'รอจัดส่ง', cls: 'wait' },
-  { id: '#PMT2025001', date: '28 มิ.ย. 2569', total: 1250, st: 'ยกเลิก', cls: 'no' }
-])
+// ที่อยู่จัดส่งเพิ่มเติม : GET/POST/PUT/DELETE /api/members/addresses
+const addresses = ref([])      // รายการที่อยู่เพิ่มเติม
+const addrError = ref('')      // ข้อความผิดพลาดใต้รายการที่อยู่
+const adding = ref(false)      // true = กำลังกรอกที่อยู่ใหม่
+const newAddress = ref('')     // ที่อยู่ใหม่ที่กรอก
+const editId = ref(null)       // id ที่อยู่ที่กำลังแก้ไข (null = ไม่ได้แก้)
+const editText = ref('')       // ข้อความที่อยู่ที่กำลังแก้ไข
 
+const loadAddresses = async () => {
+  try {
+    const data = await callApi('/api/members/addresses')
+    if (data.ok) addresses.value = data.addresses
+  }
+  catch (err) { addrError.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' }
+}
+
+const addAddress = async () => {
+  addrError.value = ''
+  if (!newAddress.value.trim()) { addrError.value = 'กรอกที่อยู่'; return }
+  try {
+    const data = await callApi('/api/members/addresses', 'POST', { address: newAddress.value })
+    if (!data.ok) { addrError.value = data.message; return }
+    addresses.value.push(data.address)
+    newAddress.value = ''
+    adding.value = false
+    toast('เพิ่มที่อยู่แล้ว')
+  }
+  catch (err) { addrError.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' }
+}
+
+const startEditAddress = (a) => {
+  editId.value = a.id
+  editText.value = a.address
+  adding.value = false
+  addrError.value = ''
+}
+
+const saveAddress = async () => {
+  addrError.value = ''
+  if (!editText.value.trim()) { addrError.value = 'กรอกที่อยู่'; return }
+  try {
+    const data = await callApi('/api/members/addresses/' + editId.value, 'PUT', { address: editText.value })
+    if (!data.ok) { addrError.value = data.message; return }
+    const i = addresses.value.findIndex(x => x.id === editId.value)
+    if (i > -1) addresses.value[i] = data.address
+    editId.value = null
+    toast('แก้ไขที่อยู่แล้ว')
+  }
+  catch (err) { addrError.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' }
+}
+
+const removeAddress = async (a) => {
+  if (!confirm('ลบที่อยู่นี้หรือไม่?')) return
+  addrError.value = ''
+  try {
+    const data = await callApi('/api/members/addresses/' + a.id, 'DELETE')
+    if (!data.ok) { addrError.value = data.message; return }
+    addresses.value = addresses.value.filter(x => x.id !== a.id)
+  }
+  catch (err) { addrError.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' }
+}
+
+// ประวัติการสั่งซื้อ : GET /api/orders แล้วเก็บเฉพาะคำสั่งซื้อที่ยืนยันแล้ว (confirmed) ของตัวเอง
+// (ตะกร้า = status pending ยังไม่นับเป็นประวัติ / Admin ได้ของทุกคนมา จึงกรองด้วย member_id)
+const orders = ref([])
+const loadOrders = async () => {
+  try {
+    const data = await callApi('/api/orders')
+    if (!data.success) return
+    orders.value = data.data.filter(o => o.status === 'confirmed' && o.member_id === user.value.id)
+  }
+  catch (err) { /* ไม่ได้ต่อ Backend : ปล่อยตารางว่าง */ }
+}
+
+// ดูรายการสินค้าในคำสั่งซื้อ : GET /api/orders/:orderId (โหลดครั้งแรกที่กดเปิด แล้วเก็บไว้ใช้ซ้ำ)
+const openId = ref(null)       // id คำสั่งซื้อที่กางรายละเอียดอยู่ (null = ปิดหมด)
+const detail = ref({})         // { orderId: [รายการสินค้า] }
+const detailError = ref('')
+const toggleOrder = async (o) => {
+  if (openId.value === o.id) { openId.value = null; return }
+  openId.value = o.id
+  detailError.value = ''
+  if (detail.value[o.id]) return
+  try {
+    const data = await callApi('/api/orders/' + o.id)
+    if (!data.success) { detailError.value = data.message; return }
+    detail.value[o.id] = data.data.items
+  }
+  catch (err) { detailError.value = 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้' }
+}
+// ยอดรวมคำนวณจากรายการสินค้าที่แสดง (ให้ตรงกับตารางเสมอ)
+const detailTotal = (id) => (detail.value[id] || []).reduce((s, it) => s + it.qty * Number(it.unit_price), 0)
+
+// แสดงวันที่แบบไทย เช่น 12 ก.ค. 2569
+const fmtDate = (d) => new Date(d).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
 const fmt = (n) => n.toLocaleString('en-US')
 const toast = (msg) => alert(msg)
 </script>

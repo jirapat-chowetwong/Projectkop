@@ -7,6 +7,7 @@ import Login from '../views/Login.vue'
 import Register from '../views/Register.vue'
 import Profile from '../views/Profile.vue'
 import AdminMembers from '../views/AdminMembers.vue'
+import AdminProducts from '../views/AdminProducts.vue'
 
 const routes = [
     {
@@ -37,12 +38,17 @@ const routes = [
         component:Profile
     },
     {
+        path:'/admin/products',
+        name:'admin-products',
+        component:AdminProducts
+    },
+    {
         path:'/admin/members',
         name:'admin-members',
         component:AdminMembers
     },
     {
-        path:'/prodetail/detail',
+        path:'/prodetail/:id',
         name:'detail',
         component:ProDetail
     },

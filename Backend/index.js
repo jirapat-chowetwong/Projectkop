@@ -8,6 +8,7 @@ import productsRoute from './routes/productRoute.js';
 import cartRoute from './routes/cartRoute.js';
 import memberRoute from './routes/memberRoute.js';
 import cookieParser from 'cookie-parser';
+import { readToken } from './middleware/auth.js';
 
 dotenv.config({ quiet: true });
 
@@ -19,12 +20,13 @@ const PORT = process.env.PORT || 3000;
 // (ถ้าใช้ cors() เปล่า ๆ หรือ origin: '*' Browser จะไม่ยอมส่ง Cookie token มาให้ Backend)
 // ต้องเปิดหน้าเว็บที่พอร์ต 5173 (หรือ 4173 ตอน vite preview) ถึงจะอยู่ในรายการนี้
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173', 'http://127.0.0.1:4173'],
+  origin: ['http://localhost','http://127.0.0.1','http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:4173', 'http://127.0.0.1:4173'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,
 }));
 app.use(express.json());
-app.use(cookieParser()); // อ่าน Cookie ที่ Browser ส่งมา ให้เรียกใช้ผ่าน req.cookies.token (ใช้ใน memberController)
+app.use(cookieParser()); // อ่าน Cookie ที่ Browser ส่งมา ให้เรียกใช้ผ่าน req.cookies.token
+app.use(readToken);     // อ่าน Token แล้วใส่ req.user ให้ route อื่น (เช่น ตะกร้า) รู้ว่าใคร login อยู่
 
 // ส่วนที่ พีทำ
 app.use("/img_pd",express.static("img_pd")) 
@@ -66,6 +68,9 @@ app.listen(PORT, async () => {
   try {
     const serverTime = await testConnection();
     console.log('PostgreSQL connected, server time:', serverTime);
+    // ถ้าไม่มี SECRET_KEY สมัครสมาชิกได้ แต่ login จะล้ม (สร้าง Token ไม่ได้) จึงเตือนให้เห็นชัดตั้งแต่เปิดเซิร์ฟเวอร์
+    if (!process.env.SECRET_KEY)
+      console.error('WARNING: SECRET_KEY is missing in .env --> login will fail. Add a line like SECRET_KEY=any-long-random-text');
   } catch (err) {
     console.error('PostgreSQL connection FAILED:', err.message);
     console.error('Check DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD in your .env file');

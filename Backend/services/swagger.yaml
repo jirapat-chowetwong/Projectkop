@@ -5,7 +5,9 @@ info:
   description: |
     API ของร้านค้า KOP MART (Node.js + Express + PostgreSQL)
 
-    เอกสารนี้อธิบาย endpoint ในส่วน **สมาชิก (Members / Auth)**
+    เอกสารนี้อธิบาย endpoint ของ **สมาชิก (Members / Auth)**, **สินค้า/ซีรีส์ (Products)**, **ตะกร้า (Cart)** และ **คำสั่งซื้อ (Orders)**
+
+    ทุก error ของสินค้า/ตะกร้า/คำสั่งซื้อมี `message` เหมือนส่วนสมาชิก และตะกร้า/คำสั่งซื้อมี flag `success` เพิ่มมาด้วย
 
     ## รูปแบบการตอบกลับ
     ตอบเป็น JSON พร้อม **HTTP status ที่ถูกต้อง** และมี `message` อธิบายผลเสมอ นอกจากนี้บาง endpoint มีฟิลด์บอกผลใน body:
@@ -51,6 +53,12 @@ servers:
 tags:
   - name: Members
     description: สมัครสมาชิก เข้าสู่ระบบ และจัดการข้อมูลสมาชิก
+  - name: Products
+    description: สินค้าและซีรีส์ (ดูสินค้า Public / จัดการสินค้า Admin)
+  - name: Cart
+    description: ตะกร้าสินค้าและการยืนยันสั่งซื้อ (ตะกร้า = order ที่ status pending)
+  - name: Orders
+    description: ประวัติและรายละเอียดคำสั่งซื้อ
 paths:
   /members:
     post:
@@ -578,6 +586,496 @@ paths:
           $ref: '#/components/responses/MemberNotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+  /products:
+    get:
+      tags: [Products]
+      summary: รายการสินค้า (ค้นหา/กรอง/เรียง/แบ่งหน้า)
+      description: |
+        ดึงสินค้าที่เปิดขาย **Public** — admin ส่ง `all=true` เพื่อเห็นสินค้าที่ซ่อนด้วย
+      parameters:
+        - {name: q, in: query, schema: {type: string}, description: ค้นหาจากชื่อหรือรหัสสินค้า}
+        - {name: series, in: query, schema: {type: integer}, description: รหัสซีรีส์}
+        - {name: type, in: query, schema: {type: string, enum: [blind_box, whole_set, single]}}
+        - {name: in_stock, in: query, schema: {type: string, enum: ['true']}, description: เฉพาะที่ stock > 0}
+        - {name: sort, in: query, schema: {type: string, enum: [newest, oldest, price_asc, price_desc, name], default: newest}}
+        - {name: page, in: query, schema: {type: integer, default: 1}}
+        - {name: limit, in: query, schema: {type: integer, default: 50, maximum: 100}}
+        - {name: all, in: query, schema: {type: string, enum: ['true']}, description: admin เท่านั้น — รวมสินค้าที่ซ่อน}
+      responses:
+        '200':
+          description: สำเร็จ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  page: {type: integer}
+                  limit: {type: integer}
+                  total: {type: integer}
+                  totalPages: {type: integer}
+                  data:
+                    type: array
+                    items: {$ref: '#/components/schemas/Product'}
+        '400':
+          description: type / sort / series ไม่ถูกต้อง
+          content:
+            application/json:
+              example: {message: 'type must be one of: blind_box, whole_set, single'}
+    post:
+      tags: [Products]
+      summary: เพิ่มสินค้า
+      description: เพิ่มสินค้าใหม่ **Admin**
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, price]
+              properties:
+                code: {type: string, description: รหัสสินค้า ต้องไม่ซ้ำ}
+                name: {type: string}
+                price: {type: number}
+                series_id: {type: integer}
+                product_type: {type: string, enum: [blind_box, whole_set, single], default: blind_box}
+                stock: {type: integer, default: 0}
+                description: {type: string}
+                is_active: {type: boolean, default: true}
+            example: {code: T001, name: Test Product, series_id: 1, price: 199, stock: 10}
+      responses:
+        '201':
+          description: สร้างสำเร็จ
+          content:
+            application/json:
+              example:
+                message: ok
+                data: {id: 51, code: T001, name: Test Product, series_id: 1, price: 199, stock: 10, product_type: blind_box, is_active: true}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/AdminOnly'}
+        '409':
+          description: code ซ้ำ
+          content:
+            application/json:
+              example: {message: 'ERROR code T001 already exists'}
+        '422':
+          description: ไม่ส่ง code หรือ name
+          content:
+            application/json:
+              example: {message: 'ERROR code and name are required'}
+        '500': {$ref: '#/components/responses/ServerError'}
+  /products/{id}:
+    get:
+      tags: [Products]
+      summary: รายละเอียดสินค้า
+      description: ดึงสินค้า 1 รายการ (เฉพาะที่เปิดขาย) **Public**
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: สำเร็จ
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Product'}
+        '400':
+          description: id ไม่ใช่ตัวเลข
+          content:
+            application/json:
+              example: {message: id must be a number}
+        '404':
+          description: ไม่พบสินค้าหรือถูกซ่อน
+          content:
+            application/json:
+              example: {message: Product not found}
+    put:
+      tags: [Products]
+      summary: แก้ไขสินค้า
+      description: |
+        **Admin** — แทนที่ **ทุกช่อง** จึงต้องส่งครบทุกช่อง ช่องที่ไม่ส่งจะกลายเป็นค่าว่าง
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code, name, series_id, product_type, price, stock, description, is_active]
+              properties:
+                code: {type: string}
+                name: {type: string}
+                series_id: {type: integer}
+                product_type: {type: string, enum: [blind_box, whole_set, single]}
+                price: {type: number}
+                stock: {type: integer}
+                description: {type: string}
+                is_active: {type: boolean}
+            example: {code: T001, name: Test Product v2, series_id: 1, product_type: single, price: 249, stock: 8, description: edited, is_active: true}
+      responses:
+        '200':
+          description: แก้ไขสำเร็จ ส่ง body ที่ส่งมากลับ พร้อม updated_at และ message
+          content:
+            application/json:
+              example: {code: T001, name: Test Product v2, price: 249, stock: 8, updated_at: '2026-10-30T10:00:00.000Z', message: ok}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/AdminOnly'}
+        '404':
+          description: ไม่พบสินค้า
+          content:
+            application/json:
+              example: {message: 'ERROR product id 999 not found'}
+        '500': {$ref: '#/components/responses/ServerError'}
+    delete:
+      tags: [Products]
+      summary: ลบสินค้า
+      description: |
+        **Admin** — สินค้าที่เคยถูกสั่งซื้อแล้วลบไม่ได้ (409) ให้ตั้ง `is_active=false` ผ่าน PUT เพื่อซ่อนแทน
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '204': {description: ลบสำเร็จ (ไม่มี body)}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/AdminOnly'}
+        '404':
+          description: ไม่พบสินค้า
+          content:
+            application/json:
+              example: {message: 'ERROR product id 999 not found'}
+        '409':
+          description: สินค้าเคยถูกสั่งซื้อแล้ว
+          content:
+            application/json:
+              example: {message: 'ERROR product is used in orders, hide it instead of deleting'}
+  /products/{id}/image:
+    post:
+      tags: [Products]
+      summary: เปลี่ยนรูปสินค้า
+      description: |
+        **Admin** — บันทึกทับ `img_pd/<code>.jpg` รับ jpg/png/webp/gif ไม่เกิน 2 MB
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+      responses:
+        '200':
+          description: อัปโหลดสำเร็จ
+          content:
+            application/json:
+              example: {message: File uploaded successfully!, upload: true, image: P007.jpg}
+        '400':
+          description: ไม่ส่งไฟล์ / ชนิดไม่รองรับ / ใหญ่เกิน 2 MB / id ไม่ใช่ตัวเลข
+          content:
+            application/json:
+              example: {message: 'ERROR file is required.', upload: false}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/AdminOnly'}
+        '404':
+          description: ไม่พบสินค้า
+          content:
+            application/json:
+              example: {message: Product not found, upload: false}
+  /series:
+    get:
+      tags: [Products]
+      summary: รายการซีรีส์
+      description: ซีรีส์ทั้งหมดพร้อมจำนวนสินค้าที่เปิดขาย **Public**
+      responses:
+        '200':
+          description: สำเร็จ
+          content:
+            application/json:
+              example:
+                total: 5
+                data:
+                  - {id: 1, name: Hirono, product_count: 14}
+  /series/{id}:
+    get:
+      tags: [Products]
+      summary: ซีรีส์ 1 รายการ พร้อมสินค้า
+      description: '**Public**'
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: integer}
+          example: 1
+      responses:
+        '200':
+          description: สำเร็จ
+          content:
+            application/json:
+              example:
+                id: 1
+                name: Hirono
+                products:
+                  - {id: 7, code: P007, name: Labubu Sweet Macaron Blind Box, product_type: blind_box, price: '480.00', stock: 45, description: Sample, is_active: true}
+        '400':
+          description: id ไม่ใช่ตัวเลข
+          content:
+            application/json:
+              example: {message: id must be a number}
+        '404':
+          description: ไม่พบซีรีส์
+          content:
+            application/json:
+              example: {message: Series not found}
+  /cart:
+    get:
+      tags: [Cart]
+      summary: ดูตะกร้าของตัวเอง
+      description: |
+        ดึงตะกร้า (order ที่ status = pending) พร้อมรายการสินค้าและยอดรวม **Member+Admin**
+        - ไม่มีตะกร้า = ตอบ 200 พร้อม `Cart is empty`
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      responses:
+        '200':
+          description: สำเร็จ
+          content:
+            application/json:
+              examples:
+                hasItems:
+                  value:
+                    cart_id: 21
+                    order_no: '202610300021'
+                    total_amount: '960.00'
+                    items:
+                      - {item_id: 40, qty: 2, unit_price: '480.00', product_id: 7, code: P007, name: Labubu Sweet Macaron Blind Box, price: '480.00', stock: 45}
+                empty:
+                  value: {message: Cart is empty, data: {items: [], total_amount: 0}}
+        '401': {$ref: '#/components/responses/CartUnauthorized'}
+    post:
+      tags: [Cart]
+      summary: เพิ่มสินค้าลงตะกร้า
+      description: |
+        **Member+Admin** — ไม่มีตะกร้าจะสร้างให้ ถ้ามีสินค้านี้อยู่แล้วจะบวกจำนวนเพิ่ม
+        และบันทึก `unit_price` ตามราคาตอนกดเพิ่ม
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, qty]
+              properties:
+                product_id: {type: integer}
+                qty: {type: integer, minimum: 1}
+            example: {product_id: 7, qty: 2}
+      responses:
+        '200':
+          description: เพิ่มสำเร็จ
+          content:
+            application/json:
+              example: {success: true, message: Product added to cart successfully}
+        '400':
+          description: product_id / qty ไม่ถูกต้อง
+          content:
+            application/json:
+              example: {success: false, message: Invalid product_id or quantity}
+        '401': {$ref: '#/components/responses/CartUnauthorized'}
+        '404':
+          description: ไม่พบสินค้าหรือถูกซ่อน
+          content:
+            application/json:
+              example: {success: false, message: Product not found or inactive}
+        '500': {$ref: '#/components/responses/CartServerError'}
+    delete:
+      tags: [Cart]
+      summary: ล้างตะกร้าทั้งหมด
+      description: ลบสินค้าทั้งหมดและลบตะกร้า **Member+Admin** (ตอนนี้หน้าเว็บยังไม่ได้เรียกใช้)
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      responses:
+        '200':
+          description: ล้างสำเร็จ
+          content:
+            application/json:
+              example: {success: true, message: Cart cleared successfully}
+        '401': {$ref: '#/components/responses/CartUnauthorized'}
+        '404':
+          description: ไม่มีตะกร้า
+          content:
+            application/json:
+              example: {success: false, message: No active cart found for this member}
+  /cart/items/{itemId}:
+    delete:
+      tags: [Cart]
+      summary: ลบสินค้า 1 รายการออกจากตะกร้า
+      description: |
+        **Member+Admin** — `itemId` คือ `item_id` จาก GET /cart (ไม่ใช่ product_id)
+        ถ้าลบแล้วตะกร้าว่างจะลบตะกร้าทิ้งด้วย
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema: {type: integer}
+          example: 40
+      responses:
+        '200':
+          description: ลบสำเร็จ
+          content:
+            application/json:
+              examples:
+                removed:
+                  value: {success: true, message: Item removed from cart successfully}
+                cartEmpty:
+                  value: {success: true, message: 'Item removed. Cart is now empty and has been deleted.'}
+        '401': {$ref: '#/components/responses/CartUnauthorized'}
+        '404':
+          description: ไม่พบรายการ หรือไม่ใช่ของตะกร้าตัวเอง
+          content:
+            application/json:
+              example: {success: false, message: Item not found in pending cart}
+  /cart/checkout:
+    post:
+      tags: [Cart]
+      summary: ยืนยันสั่งซื้อ
+      description: |
+        **Member+Admin** — ทำเป็น transaction เดียว: ตรวจสต็อก → ตัดสต็อก → เปลี่ยนสถานะเป็น `confirmed`
+        ถ้าสต็อกชิ้นใดไม่พอจะ rollback ทั้งหมด ไม่ต้องส่ง body
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      responses:
+        '200':
+          description: สั่งซื้อสำเร็จ
+          content:
+            application/json:
+              example:
+                success: true
+                message: Checkout successful and stock updated.
+                data: {id: 21, order_no: '202610300021', member_id: 2, status: confirmed, total_amount: '960.00', created_at: '2026-10-30T10:00:00.000Z', confirmed_at: '2026-10-30T10:05:00.000Z'}
+        '400':
+          description: ตะกร้าว่าง หรือสต็อกไม่พอ
+          content:
+            application/json:
+              examples:
+                empty:
+                  value: {success: false, message: Cannot checkout an empty cart}
+                stock:
+                  value: {success: false, message: 'Product ID 7 is out of stock or insufficient quantity.'}
+        '401': {$ref: '#/components/responses/CartUnauthorized'}
+        '404':
+          description: ไม่มีตะกร้า
+          content:
+            application/json:
+              example: {success: false, message: No active pending cart found}
+        '500': {$ref: '#/components/responses/CartServerError'}
+  /orders:
+    get:
+      tags: [Orders]
+      summary: ประวัติคำสั่งซื้อ
+      description: |
+        **Member+Admin** — member เห็นเฉพาะของตัวเอง (รวมตะกร้า pending)
+        admin เห็นของทุกคน หรือกรองด้วย `target_member_id`
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      parameters:
+        - name: target_member_id
+          in: query
+          schema: {type: integer}
+          description: เฉพาะ admin — ดูของสมาชิกคนนี้
+      responses:
+        '200':
+          description: สำเร็จ
+          content:
+            application/json:
+              example:
+                success: true
+                role: admin
+                count: 1
+                data:
+                  - {id: 21, order_no: '202610300021', member_id: 2, status: confirmed, total_amount: '960.00', created_at: '2026-10-30T10:00:00.000Z', confirmed_at: '2026-10-30T10:05:00.000Z', member_name: Somchai Jaidee, member_email: somchai@example.com}
+        '401': {$ref: '#/components/responses/CartUnauthorized'}
+        '404':
+          description: ไม่พบสมาชิก
+          content:
+            application/json:
+              example: {success: false, message: Member not found}
+  /orders/{orderId}:
+    get:
+      tags: [Orders]
+      summary: รายละเอียดคำสั่งซื้อ
+      description: ดูได้เฉพาะเจ้าของหรือ admin
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema: {type: integer}
+          example: 21
+      responses:
+        '200':
+          description: สำเร็จ
+          content:
+            application/json:
+              example:
+                success: true
+                data:
+                  order_id: 21
+                  order_no: '202610300021'
+                  member_id: 2
+                  member_name: Somchai Jaidee
+                  member_email: somchai@example.com
+                  status: confirmed
+                  total_amount: '960.00'
+                  created_at: '2026-10-30T10:00:00.000Z'
+                  confirmed_at: '2026-10-30T10:05:00.000Z'
+                  items:
+                    - {item_id: 40, qty: 2, unit_price: '480.00', product_id: 7, code: P007, name: Labubu Sweet Macaron Blind Box, price: '480.00', stock: 43}
+        '401': {$ref: '#/components/responses/CartUnauthorized'}
+        '403':
+          description: ไม่ใช่เจ้าของและไม่ใช่ admin
+          content:
+            application/json:
+              example: {success: false, message: 'Access denied. You can only view your own orders.'}
+        '404':
+          description: ไม่พบ order
+          content:
+            application/json:
+              example: {success: false, message: Order not found}
+  /orders/member/{memberId}:
+    get:
+      tags: [Orders]
+      summary: ประวัติคำสั่งซื้อของสมาชิกคนหนึ่ง
+      description: |
+        ดูได้เฉพาะของตัวเอง หรือ admin ดูของใครก็ได้ (ตอนนี้หน้าเว็บใช้ `GET /orders` แทน จึงยังไม่มีหน้าไหนเรียก endpoint นี้)
+      security: [{cookieAuth: []}, {bearerAuth: []}]
+      parameters:
+        - name: memberId
+          in: path
+          required: true
+          schema: {type: integer}
+          example: 2
+      responses:
+        '200':
+          description: สำเร็จ
+          content:
+            application/json:
+              example:
+                success: true
+                member_info: {id: 2, name: Somchai Jaidee, email: somchai@example.com, phone: '0810000002'}
+                total_orders: 1
+                data:
+                  - {id: 21, order_no: '202610300021', member_id: 2, status: confirmed, total_amount: '960.00'}
+        '401': {$ref: '#/components/responses/CartUnauthorized'}
+        '403':
+          description: ดูของคนอื่นโดยไม่ใช่ admin
+          content:
+            application/json:
+              example: {success: false, message: 'Access denied. You can only view your own order history.'}
+        '404':
+          description: ไม่พบสมาชิก
+          content:
+            application/json:
+              example: {success: false, message: Target member not found}
 components:
   securitySchemes:
     cookieAuth:
@@ -599,6 +1097,14 @@ components:
       schema:
         type: integer
       example: 3
+    ProductId:
+      name: id
+      in: path
+      required: true
+      description: รหัสสินค้า (ตัวเลข)
+      schema:
+        type: integer
+      example: 7
   responses:
     Unauthorized:
       description: ยังไม่ได้ login หรือ token ไม่ถูกต้อง/หมดอายุ
@@ -631,7 +1137,35 @@ components:
         application/json:
           example:
             message: connect ECONNREFUSED 127.0.0.1:5432
+    CartUnauthorized:
+      description: ยังไม่ได้ login
+      content:
+        application/json:
+          example:
+            success: false
+            message: Unauthorized, please login
+    CartServerError:
+      description: ข้อผิดพลาดของเซิร์ฟเวอร์
+      content:
+        application/json:
+          example:
+            success: false
+            message: Server error
+            error: connect ECONNREFUSED 127.0.0.1:5432
   schemas:
+    Product:
+      type: object
+      properties:
+        id: {type: integer}
+        code: {type: string}
+        name: {type: string}
+        product_type: {type: string, enum: [blind_box, whole_set, single]}
+        price: {type: string, description: ทศนิยม 2 ตำแหน่ง ส่งมาเป็น string}
+        stock: {type: integer}
+        description: {type: string, nullable: true}
+        is_active: {type: boolean}
+        series_id: {type: integer, nullable: true}
+        series_name: {type: string, nullable: true}
     Member:
       type: object
       properties:

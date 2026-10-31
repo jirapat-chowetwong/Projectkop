@@ -1,0 +1,797 @@
+{
+  "info": {
+    "name": "ก๊อปมาร์ท - เอกสาร API (สมาชิก)",
+    "description": "# API Document — KOP MART (ระบบสมาชิก / Auth)\n\nBase URL: `{{baseUrl}}/api` (ค่าเริ่มต้น `http://localhost:3000`) · รูปแบบข้อมูล JSON (อัปโหลดรูปใช้ multipart/form-data)\n\n## การยืนยันตัวตน\n1. `POST /members/login` สำเร็จ → Backend ตั้ง Cookie `token` (httpOnly, อายุ 1 ชั่วโมง) และส่ง `token` กลับใน body\n2. Postman เก็บ Cookie ให้เอง หรือใช้ Header `Authorization: Bearer <token>` (request เข้าสู่ระบบจะบันทึกลงตัวแปร `token` ให้อัตโนมัติ)\n3. Endpoint ของ Admin ใช้ตัวแปร `adminToken` (login ด้วย admin@popmart.test แล้วนำ token ไปใส่ในตัวแปร)\n4. สิทธิ์ Admin ตรวจ role จากฐานข้อมูลทุกครั้ง\n\nบัญชีทดลอง: somchai@example.com (member) / admin@popmart.test (admin) รหัสผ่าน `Passw0rd!`\n\n## HTTP status\n200 สำเร็จ · 201 สร้างสำเร็จ · 400 ข้อมูลไม่ครบ/ไม่ถูกต้อง · 401 ยังไม่ login/token ผิด · 403 ไม่มีสิทธิ์/บัญชีถูกระงับ · 404 ไม่พบข้อมูล · 409 ข้อมูลซ้ำ · 500 ข้อผิดพลาดของเซิร์ฟเวอร์\n\nทุก response มี `message` และบาง endpoint มี flag `regist` / `login` / `update` / `upload`\n",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. สมัครสมาชิก",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/members",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members"
+          ]
+        },
+        "description": "**สิทธิ์:** Public\n\n**ทำอะไร:** สร้างบัญชีใหม่ รหัสผ่านถูก hash ด้วย bcrypt บทบาทเป็น member และสถานะ active เสมอ (ค่า role ที่ส่งมาถูกละเลย)\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| body | email | ✓ | อีเมล ต้องไม่ซ้ำ |\n| body | name | ✓ | ไม่เกิน 100 ตัวอักษร |\n| body | password | ✓ | อย่างน้อย 8 ตัวอักษร |\n| body | phone |  | ไม่เกิน 20 ตัวอักษร |\n| body | address |  | ที่อยู่ |\n\n**Return:** ข้อมูลสมาชิกที่สร้าง (ไม่มี password) + `message`, `regist`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 201 | สำเร็จ | Regist Success |\n| 400 | ข้อมูลไม่ครบ | ERROR email, name and password is required. |\n| 400 | รหัสผ่านสั้นกว่า 8 | ERROR password must be at least 8 characters. |\n| 409 | อีเมลซ้ำ | ERROR email <email> is exists. |\n| 500 | ฐานข้อมูลผิดพลาด | (ข้อความ error) |\n",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"nattaya.test@example.com\",\n  \"name\": \"Nattaya\",\n  \"password\": \"Mart2026!\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (201)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members"
+              ]
+            },
+            "description": "**สิทธิ์:** Public\n\n**ทำอะไร:** สร้างบัญชีใหม่ รหัสผ่านถูก hash ด้วย bcrypt บทบาทเป็น member และสถานะ active เสมอ (ค่า role ที่ส่งมาถูกละเลย)\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| body | email | ✓ | อีเมล ต้องไม่ซ้ำ |\n| body | name | ✓ | ไม่เกิน 100 ตัวอักษร |\n| body | password | ✓ | อย่างน้อย 8 ตัวอักษร |\n| body | phone |  | ไม่เกิน 20 ตัวอักษร |\n| body | address |  | ที่อยู่ |\n\n**Return:** ข้อมูลสมาชิกที่สร้าง (ไม่มี password) + `message`, `regist`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 201 | สำเร็จ | Regist Success |\n| 400 | ข้อมูลไม่ครบ | ERROR email, name and password is required. |\n| 400 | รหัสผ่านสั้นกว่า 8 | ERROR password must be at least 8 characters. |\n| 409 | อีเมลซ้ำ | ERROR email <email> is exists. |\n| 500 | ฐานข้อมูลผิดพลาด | (ข้อความ error) |\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nattaya.test@example.com\",\n  \"name\": \"Nattaya\",\n  \"password\": \"Mart2026!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 201,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"id\": 11,\n  \"email\": \"nattaya.test@example.com\",\n  \"name\": \"Nattaya\",\n  \"phone\": null,\n  \"address\": null,\n  \"role\": \"member\",\n  \"created_at\": \"2026-10-30T09:56:52.070Z\",\n  \"message\": \"Regist Success\",\n  \"regist\": true\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "2. เข้าสู่ระบบ",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/members/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members",
+            "login"
+          ]
+        },
+        "description": "**สิทธิ์:** Public\n\n**ทำอะไร:** ตรวจอีเมล/รหัสผ่าน แล้วสร้าง JWT (อายุ 1 ชั่วโมง) ตั้งเป็น Cookie `token` และส่งกลับใน body (อีเมลไม่มีในระบบกับรหัสผ่านผิดตอบข้อความเดียวกัน)\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| body | email | ✓ | อีเมล |\n| body | password | ✓ | รหัสผ่าน |\n\n**Return:** `message`, `login`, `token`, `member {id,email,name,role}` + Header `Set-Cookie: token=<JWT>; HttpOnly; SameSite=Lax`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Login Success |\n| 400 | ไม่ส่งอีเมลหรือรหัสผ่าน | Email and Password is required |\n| 401 | อีเมล/รหัสผ่านผิด | Login Fail |\n| 403 | บัญชีถูกระงับ | This account is suspended |\n| 500 | ฐานข้อมูลผิดพลาด | (ข้อความ error) |\n",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"somchai@example.com\",\n  \"password\": \"Passw0rd!\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (200)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/members/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members",
+                "login"
+              ]
+            },
+            "description": "**สิทธิ์:** Public\n\n**ทำอะไร:** ตรวจอีเมล/รหัสผ่าน แล้วสร้าง JWT (อายุ 1 ชั่วโมง) ตั้งเป็น Cookie `token` และส่งกลับใน body (อีเมลไม่มีในระบบกับรหัสผ่านผิดตอบข้อความเดียวกัน)\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| body | email | ✓ | อีเมล |\n| body | password | ✓ | รหัสผ่าน |\n\n**Return:** `message`, `login`, `token`, `member {id,email,name,role}` + Header `Set-Cookie: token=<JWT>; HttpOnly; SameSite=Lax`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Login Success |\n| 400 | ไม่ส่งอีเมลหรือรหัสผ่าน | Email and Password is required |\n| 401 | อีเมล/รหัสผ่านผิด | Login Fail |\n| 403 | บัญชีถูกระงับ | This account is suspended |\n| 500 | ฐานข้อมูลผิดพลาด | (ข้อความ error) |\n",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"somchai@example.com\",\n  \"password\": \"Passw0rd!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Login Success\",\n  \"login\": true,\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"member\": {\n    \"id\": 2,\n    \"email\": \"somchai@example.com\",\n    \"name\": \"Somchai Jaidee\",\n    \"role\": \"member\"\n  }\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ],
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const j = pm.response.json();",
+              "if (j.token) pm.collectionVariables.set('token', j.token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. ออกจากระบบ",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/members/logout",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members",
+            "logout"
+          ]
+        },
+        "description": "**สิทธิ์:** Public\n\n**ทำอะไร:** ล้าง Cookie `token` (เรียกซ้ำได้ ไม่มีผลเสีย)\n\n**Parameter:** ไม่มี\n\n**Return:** `message`, `login: false`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Logout Success |\n"
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (200)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/members/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members",
+                "logout"
+              ]
+            },
+            "description": "**สิทธิ์:** Public\n\n**ทำอะไร:** ล้าง Cookie `token` (เรียกซ้ำได้ ไม่มีผลเสีย)\n\n**Parameter:** ไม่มี\n\n**Return:** `message`, `login: false`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Logout Success |\n"
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"Logout Success\",\n  \"login\": false\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "4. ดูข้อมูลตัวเอง",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/members/detail",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members",
+            "detail"
+          ]
+        },
+        "description": "**สิทธิ์:** Member+Admin\n\n**ทำอะไร:** อ่านข้อมูลสมาชิกที่ login อยู่จากฐานข้อมูล (ข้อมูลล่าสุดเสมอ) ใช้เช็คว่า login อยู่หรือไม่\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| header | Authorization |  | Bearer token (หรือใช้ Cookie อัตโนมัติ) |\n\n**Return:** ข้อมูลสมาชิก + `login: true`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | – |\n| 401 | ไม่มี token | No member |\n| 401 | token ผิด/หมดอายุ | The information was falsified. |\n| 403 | บัญชีถูกระงับ | This account is suspended |\n",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (200)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/members/detail",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members",
+                "detail"
+              ]
+            },
+            "description": "**สิทธิ์:** Member+Admin\n\n**ทำอะไร:** อ่านข้อมูลสมาชิกที่ login อยู่จากฐานข้อมูล (ข้อมูลล่าสุดเสมอ) ใช้เช็คว่า login อยู่หรือไม่\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| header | Authorization |  | Bearer token (หรือใช้ Cookie อัตโนมัติ) |\n\n**Return:** ข้อมูลสมาชิก + `login: true`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | – |\n| 401 | ไม่มี token | No member |\n| 401 | token ผิด/หมดอายุ | The information was falsified. |\n| 403 | บัญชีถูกระงับ | This account is suspended |\n",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"id\": 2,\n  \"email\": \"somchai@example.com\",\n  \"name\": \"Somchai Jaidee\",\n  \"phone\": \"0810000002\",\n  \"address\": \"12 Sukhumvit Rd, Bangkok\",\n  \"image\": \"member_2_1761815000000.png\",\n  \"role\": \"member\",\n  \"status\": \"active\",\n  \"created_at\": \"2026-10-28T12:00:00.000Z\",\n  \"login\": true\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "5. แก้ไขข้อมูลส่วนตัว",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/members",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members"
+          ]
+        },
+        "description": "**สิทธิ์:** Member+Admin\n\n**ทำอะไร:** แก้ `name`, `phone`, `address` ของตัวเอง ส่งเฉพาะ field ที่ต้องการแก้ (อย่างน้อย 1 field) ส่ง \"\" เพื่อลบ phone/address แก้ email/role ไม่ได้\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| body | name |  | ไม่ว่าง ไม่เกิน 100 ตัว |\n| body | phone |  | ไม่เกิน 20 ตัว |\n| body | address |  | ที่อยู่ |\n\n**Return:** ข้อมูลสมาชิกล่าสุด + `message`, `update`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Update Success |\n| 400 | ไม่ส่ง field ใดเลย | ERROR name, phone or address is required. |\n| 400 | ชื่อว่าง/ยาวเกิน | ERROR name is required (max 100 characters). |\n| 400 | เบอร์ยาวเกิน | ERROR phone is too long (max 20 characters). |\n| 401 | ยังไม่ login | Please login |\n| 404 | ไม่พบสมาชิก | Member not found |\n",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Somchai Jaidee\",\n  \"phone\": \"0812345678\",\n  \"address\": \"12 Sukhumvit Rd, Bangkok\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (200)",
+          "originalRequest": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/members",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members"
+              ]
+            },
+            "description": "**สิทธิ์:** Member+Admin\n\n**ทำอะไร:** แก้ `name`, `phone`, `address` ของตัวเอง ส่งเฉพาะ field ที่ต้องการแก้ (อย่างน้อย 1 field) ส่ง \"\" เพื่อลบ phone/address แก้ email/role ไม่ได้\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| body | name |  | ไม่ว่าง ไม่เกิน 100 ตัว |\n| body | phone |  | ไม่เกิน 20 ตัว |\n| body | address |  | ที่อยู่ |\n\n**Return:** ข้อมูลสมาชิกล่าสุด + `message`, `update`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Update Success |\n| 400 | ไม่ส่ง field ใดเลย | ERROR name, phone or address is required. |\n| 400 | ชื่อว่าง/ยาวเกิน | ERROR name is required (max 100 characters). |\n| 400 | เบอร์ยาวเกิน | ERROR phone is too long (max 20 characters). |\n| 401 | ยังไม่ login | Please login |\n| 404 | ไม่พบสมาชิก | Member not found |\n",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Somchai Jaidee\",\n  \"phone\": \"0812345678\",\n  \"address\": \"12 Sukhumvit Rd, Bangkok\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"id\": 2,\n  \"email\": \"somchai@example.com\",\n  \"name\": \"Somchai Jaidee\",\n  \"phone\": \"0812345678\",\n  \"address\": \"12 Sukhumvit Rd, Bangkok\",\n  \"image\": null,\n  \"role\": \"member\",\n  \"status\": \"active\",\n  \"created_at\": \"2026-10-28T12:00:00.000Z\",\n  \"message\": \"Update Success\",\n  \"update\": true\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "6. อัปโหลดรูปโปรไฟล์",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/members/uploadimg",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members",
+            "uploadimg"
+          ]
+        },
+        "description": "**สิทธิ์:** Member+Admin\n\n**ทำอะไร:** อัปโหลดรูปโปรไฟล์ ชื่อไฟล์ตั้งโดย Backend รูปเก่าถูกลบ ดูรูปที่ `{{baseUrl}}/img_mem/<ชื่อไฟล์>`\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| form-data | file | ✓ | ไฟล์รูป .jpg .jpeg .png .webp .gif ไม่เกิน 2 MB |\n\n**Return:** `message`, `upload`, `image` (ชื่อไฟล์)\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | File uploaded successfully! |\n| 400 | ไม่แนบไฟล์ | ERROR file is required. |\n| 400 | ไม่ใช่รูป/ใหญ่เกิน 2 MB | Only image files (jpg, png, webp, gif) are allowed |\n| 401 | ยังไม่ login | Please login |\n| 500 | บันทึกไม่สำเร็จ | (ข้อความ error) |\n",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "file",
+              "type": "file",
+              "src": []
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (200)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/members/uploadimg",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members",
+                "uploadimg"
+              ]
+            },
+            "description": "**สิทธิ์:** Member+Admin\n\n**ทำอะไร:** อัปโหลดรูปโปรไฟล์ ชื่อไฟล์ตั้งโดย Backend รูปเก่าถูกลบ ดูรูปที่ `{{baseUrl}}/img_mem/<ชื่อไฟล์>`\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| form-data | file | ✓ | ไฟล์รูป .jpg .jpeg .png .webp .gif ไม่เกิน 2 MB |\n\n**Return:** `message`, `upload`, `image` (ชื่อไฟล์)\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | File uploaded successfully! |\n| 400 | ไม่แนบไฟล์ | ERROR file is required. |\n| 400 | ไม่ใช่รูป/ใหญ่เกิน 2 MB | Only image files (jpg, png, webp, gif) are allowed |\n| 401 | ยังไม่ login | Please login |\n| 500 | บันทึกไม่สำเร็จ | (ข้อความ error) |\n",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"message\": \"File uploaded successfully!\",\n  \"upload\": true,\n  \"image\": \"member_2_1761815000000.png\"\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "7. รายชื่อสมาชิกทั้งหมด",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/members?q=somchai&role=member&status=active",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members"
+          ],
+          "query": [
+            {
+              "key": "q",
+              "value": "somchai",
+              "disabled": true
+            },
+            {
+              "key": "role",
+              "value": "member",
+              "disabled": true
+            },
+            {
+              "key": "status",
+              "value": "active",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "**สิทธิ์:** Admin\n\n**ทำอะไร:** แสดงสมาชิกทั้งหมดเรียงตาม id พร้อมค้นหา/กรอง (เปิดใช้ query ที่ต้องการ)\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| query | q |  | ค้นหาจากชื่อหรืออีเมล |\n| query | role |  | member | admin |\n| query | status |  | active | suspended |\n\n**Return:** `{ total, data: [สมาชิก...] }`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | – |\n| 400 | role/status ไม่ถูกต้อง | role must be member or admin / status must be active or suspended |\n| 401 | ยังไม่ login | Please login |\n| 403 | ไม่ใช่ admin | Admin only |\n",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        }
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (200)",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/members?q=somchai&role=member&status=active",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "somchai",
+                  "disabled": true
+                },
+                {
+                  "key": "role",
+                  "value": "member",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "**สิทธิ์:** Admin\n\n**ทำอะไร:** แสดงสมาชิกทั้งหมดเรียงตาม id พร้อมค้นหา/กรอง (เปิดใช้ query ที่ต้องการ)\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| query | q |  | ค้นหาจากชื่อหรืออีเมล |\n| query | role |  | member | admin |\n| query | status |  | active | suspended |\n\n**Return:** `{ total, data: [สมาชิก...] }`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | – |\n| 400 | role/status ไม่ถูกต้อง | role must be member or admin / status must be active or suspended |\n| 401 | ยังไม่ login | Please login |\n| 403 | ไม่ใช่ admin | Admin only |\n",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"total\": 1,\n  \"data\": [\n    {\n      \"id\": 2,\n      \"email\": \"somchai@example.com\",\n      \"name\": \"Somchai Jaidee\",\n      \"phone\": \"0810000002\",\n      \"address\": \"12 Sukhumvit Rd, Bangkok\",\n      \"image\": null,\n      \"role\": \"member\",\n      \"status\": \"active\",\n      \"created_at\": \"2026-10-28T12:00:00.000Z\"\n    }\n  ]\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "8. เปลี่ยนสถานะสมาชิก",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/members/3/status",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members",
+            "3",
+            "status"
+          ]
+        },
+        "description": "**สิทธิ์:** Admin\n\n**ทำอะไร:** ระงับ (suspended) หรือเปิดใช้งาน (active) บัญชี สมาชิกที่ถูกระงับ login ไม่ได้ และ token เดิมใช้ไม่ได้ เปลี่ยนของตัวเองไม่ได้\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| path | id | ✓ | รหัสสมาชิก (ตัวเลข) |\n| body | status | ✓ | active | suspended |\n\n**Return:** ข้อมูลสมาชิกล่าสุด + `message`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Update status Success |\n| 400 | id ไม่ใช่ตัวเลข | id must be a number |\n| 400 | status ผิด | status must be one of: active, suspended |\n| 400 | เปลี่ยนของตัวเอง | You cannot change your own status |\n| 401 | ยังไม่ login | Please login |\n| 403 | ไม่ใช่ admin | Admin only |\n| 404 | ไม่พบสมาชิก | Member not found |\n",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"suspended\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (200)",
+          "originalRequest": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/members/3/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members",
+                "3",
+                "status"
+              ]
+            },
+            "description": "**สิทธิ์:** Admin\n\n**ทำอะไร:** ระงับ (suspended) หรือเปิดใช้งาน (active) บัญชี สมาชิกที่ถูกระงับ login ไม่ได้ และ token เดิมใช้ไม่ได้ เปลี่ยนของตัวเองไม่ได้\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| path | id | ✓ | รหัสสมาชิก (ตัวเลข) |\n| body | status | ✓ | active | suspended |\n\n**Return:** ข้อมูลสมาชิกล่าสุด + `message`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Update status Success |\n| 400 | id ไม่ใช่ตัวเลข | id must be a number |\n| 400 | status ผิด | status must be one of: active, suspended |\n| 400 | เปลี่ยนของตัวเอง | You cannot change your own status |\n| 401 | ยังไม่ login | Please login |\n| 403 | ไม่ใช่ admin | Admin only |\n| 404 | ไม่พบสมาชิก | Member not found |\n",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"suspended\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"id\": 3,\n  \"email\": \"suda@example.com\",\n  \"name\": \"Suda Rakdee\",\n  \"phone\": \"0810000003\",\n  \"address\": \"45 Nimman Rd, Chiang Mai\",\n  \"image\": null,\n  \"role\": \"member\",\n  \"status\": \"suspended\",\n  \"created_at\": \"2026-10-28T12:00:00.000Z\",\n  \"message\": \"Update status Success\"\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    },
+    {
+      "name": "9. เปลี่ยนบทบาทสมาชิก",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/members/3/role",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "members",
+            "3",
+            "role"
+          ]
+        },
+        "description": "**สิทธิ์:** Admin\n\n**ทำอะไร:** ตั้งเป็น admin หรือลดกลับเป็น member (ใช้เพิ่ม admin) เปลี่ยนของตัวเองไม่ได้ ตรวจ role จากฐานข้อมูลทุกครั้ง จึงมีผลทันที\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| path | id | ✓ | รหัสสมาชิก (ตัวเลข) |\n| body | role | ✓ | member | admin |\n\n**Return:** ข้อมูลสมาชิกล่าสุด + `message`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Update role Success |\n| 400 | id ไม่ใช่ตัวเลข | id must be a number |\n| 400 | role ผิด | role must be one of: member, admin |\n| 400 | เปลี่ยนของตัวเอง | You cannot change your own role |\n| 401 | ยังไม่ login | Please login |\n| 403 | ไม่ใช่ admin | Admin only |\n| 404 | ไม่พบสมาชิก | Member not found |\n",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{adminToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"role\": \"admin\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [
+        {
+          "name": "ตัวอย่างผลลัพธ์ (200)",
+          "originalRequest": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/members/3/role",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "members",
+                "3",
+                "role"
+              ]
+            },
+            "description": "**สิทธิ์:** Admin\n\n**ทำอะไร:** ตั้งเป็น admin หรือลดกลับเป็น member (ใช้เพิ่ม admin) เปลี่ยนของตัวเองไม่ได้ ตรวจ role จากฐานข้อมูลทุกครั้ง จึงมีผลทันที\n\n**Parameter**\n\n| ที่ | ชื่อ | บังคับ | รายละเอียด |\n|---|---|---|---|\n| path | id | ✓ | รหัสสมาชิก (ตัวเลข) |\n| body | role | ✓ | member | admin |\n\n**Return:** ข้อมูลสมาชิกล่าสุด + `message`\n\n**Status ที่เป็นไปได้**\n\n| Status | เมื่อไหร่ | message |\n|---|---|---|\n| 200 | สำเร็จ | Update role Success |\n| 400 | id ไม่ใช่ตัวเลข | id must be a number |\n| 400 | role ผิด | role must be one of: member, admin |\n| 400 | เปลี่ยนของตัวเอง | You cannot change your own role |\n| 401 | ยังไม่ login | Please login |\n| 403 | ไม่ใช่ admin | Admin only |\n| 404 | ไม่พบสมาชิก | Member not found |\n",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{adminToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"id\": 3,\n  \"email\": \"suda@example.com\",\n  \"name\": \"Suda Rakdee\",\n  \"phone\": \"0810000003\",\n  \"address\": \"45 Nimman Rd, Chiang Mai\",\n  \"image\": null,\n  \"role\": \"admin\",\n  \"status\": \"active\",\n  \"created_at\": \"2026-10-28T12:00:00.000Z\",\n  \"message\": \"Update role Success\"\n}",
+          "_postman_previewlanguage": "json"
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    }
+  ]
+}
